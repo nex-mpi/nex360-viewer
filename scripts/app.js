@@ -137,16 +137,20 @@ vec3 getIllumination()
 void main(void)
 {
     vec3 illumination = getIllumination();
+    /*
     vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));
     color.rgb = color.rgb + illumination;
     color = clamp(color, 0.0, 1.0);
-    //vec4 alpha_rgb = texture2D(mpi_a, uv2lookup(alphaRgbId(), num_layers * num_sublayers / 3));
-    //float alpha = getAlpha(alpha_rgb);
+    */
+    vec3 viewing = getViewingAngle();
+    viewing = (viewing + 1.0) / 2.0;
+    vec4 color;
+    color.rgb = viewing;
+
     int total_plane = num_layers * num_sublayers;
     float alpha = texture2D(mpi_a, uv2lookup(plane_id, total_plane)).r;
     color.a = alpha;
     gl_FragColor= vec4(color);
-    //gl_FragColor= vec4(1.0, 0.0, 0.0 ,0.1);
 }
 `
 
@@ -215,9 +219,9 @@ class NeXviewerApp{
             "mpi_coeff": texloader.load( "data/lego/mpi00_coeff8.png" )
         };
         // load texture;
-        this.camera.position.z = 4; // TODO: support proper position
+        //this.camera.position.z = 4; // TODO: support proper position
         //to rotate the same as c2w, need to disable  orbitcontrol update and enable this line
-        //this.camera.applyMatrix4(c2w); 
+        this.camera.applyMatrix4(c2w); 
         this.mpis = {
             0:{
                 'planes':[]
