@@ -1,5 +1,7 @@
 // NeX360 viewer
 
+// variable list for  Three.js glsl. 
+// @see https://stackoverflow.com/questions/15663859/threejs-predefined-shader-attributes-uniforms
 let planeVshader = `
 varying vec2 vUv;
 
@@ -15,15 +17,19 @@ let planeFshader = `
 #ifdef GL_ES
 precision highp float;
 #endif
+#define EPSILON 0.000000001
 
 uniform sampler2D mpi_a;
 uniform sampler2D mpi_b;
 uniform sampler2D mpi_c;
-uniform sampler2D coeff;
+uniform sampler2D mpi_coeff;
 uniform int num_col;
 uniform int plane_id;
 uniform int num_layers;
 uniform int num_sublayers;
+uniform int num_basis;
+uniform float fov_tan;
+uniform float depth;
 
 varying vec2 vUv;
 
@@ -46,8 +52,9 @@ vec2 uv2lookup(int id, int total_id)
     //convert planeUV into the UV on 
     vec2 loc;
     float nc = float(num_col);
-    float nr = 6.0;//ceil(float(total_id) /float(num_col));
-    float row_id = float(id / num_col);
+    float nr = ceil(float(total_id) /float(num_col));
+    //need to flip row_id since uv map is 1 at top and 0 at bottom
+    float row_id = nr - float(id / num_col) - 1.0;
     float col_id = float(mod_val(id, num_col));
     loc[0] = vUv[0] / nc;
     loc[1] = vUv[1] / nr;
@@ -64,7 +71,7 @@ int alphaRgbId()
     return mod_val(plane_id, period);
 }
 
-float get_alpha(vec4 rgba)
+float getAlpha(vec4 rgba)
 {
     int period = (num_layers * num_sublayers) / 3;
     int id = plane_id / period;
@@ -73,18 +80,71 @@ float get_alpha(vec4 rgba)
     return rgba.b;
 }
 
+vec2 stereographicProjection(vec3 point)
+{
+    vec2 ret;
+    ret.x = ret.x / (1.0 - point.z + EPSILON);
+    ret.y = ret.y / (1.0 - point.z + EPSILON);
+    return ret;
+}
+vec3 getViewingAngle()
+{
+    mat4 c2w = inverse(viewMatrix);
+    
+    // create point in camera coordinate
+    vec3 point = vec3(vUv, -1.0);
+    point = (point * 2.0 - 1.0) * depth;     //change point into [-1, 1];
+    point.xy = point.xy  * fov_tan;
+    
+    // viewing direction is a direction from point in 3D to camera postion
+    vec3 viewing = normalize(point - cameraPosition);
+
+    return viewing;
+}
+
+float getBasis(vec3 viewing, int basis_id)
+{
+    float basis;
+    vec2 lookup = stereographicProjection(viewing);
+    lookup = lookup + 1.0 / 2.0; //rescale to [0,1];
+    lookup.x /= 4.0; //scale to 4 basis block
+    if(viewing.z < 0.0) lookup.x += 0.5;
+    if(basis_id > 4) lookup.x += 0.25;
+    vec4 raw = texture2D(mpi_b, lookup);
+    if(basis_id == 0 || basis_id == 4) basis = raw.r;
+    if(basis_id == 1 || basis_id == 5) basis = raw.g;
+    if(basis_id == 2 || basis_id == 6) basis = raw.b;
+    if(basis_id == 3 || basis_id == 7) basis = raw.a;
+    return basis;
+}
+
+vec3 getIllumination()
+{
+    vec3 viewing = getViewingAngle();
+    vec3 illumination;
+    int total_coeff = num_basis * num_layers;
+    int layer_id = layerId();
+    for(int i = 0; i < num_layers; i++)
+    {
+        vec4 coeff = texture2D(mpi_coeff, uv2lookup((i * num_layers) + layer_id, total_coeff));
+        coeff = coeff * 2.0 - 1.0;
+        float basis = getBasis(viewing, i);
+        illumination = illumination + (coeff.rgb * basis);
+    }
+    return illumination;
+}
+
 void main(void)
 {
+    vec3 illumination = getIllumination();
     vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));
-    vec4 alpha_rgb = texture2D(mpi_a, uv2lookup(alphaRgbId(), num_layers * num_sublayers / 3));
-    float alpha = get_alpha(alpha_rgb);
-    //color.a = 0.005;
-    
-    color.r = 0.0;
-    color.g = 0.0;
-    color.b = 0.0;
+    color.rgb = color.rgb + illumination;
+    color = clamp(color, 0.0, 1.0);
+    //vec4 alpha_rgb = texture2D(mpi_a, uv2lookup(alphaRgbId(), num_layers * num_sublayers / 3));
+    //float alpha = getAlpha(alpha_rgb);
+    int total_plane = num_layers * num_sublayers;
+    float alpha = texture2D(mpi_a, uv2lookup(plane_id, total_plane)).r;
     color.a = alpha;
-    
     gl_FragColor= vec4(color);
     //gl_FragColor= vec4(1.0, 0.0, 0.0 ,0.1);
 }
@@ -98,9 +158,43 @@ class NeXviewerApp{
         
     }
     intial(){
+        // intial stat
+        this.stats = new Stats();
+        this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+        document.body.appendChild(this.stats.dom);
+
         // inital global thing
         this.scene = new THREE.Scene();
         let ratio = window.innerWidth / window.innerHeight
+        let c2w_arr = this.cfg.c2ws[0];
+        console.log(c2w_arr);
+        console.log(c2w_arr[0][0]);
+        console.log(c2w_arr[0][1]);
+        console.log(c2w_arr[0][2]);
+
+        let c2w = new THREE.Matrix4();
+        //set is row major, internal is column major
+        c2w.set(
+            c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
+            c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
+            c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
+            c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
+        );
+        let w2c = c2w.clone().invert();
+
+        let camMat = new THREE.Matrix4();
+        //set is row major, internal is column major
+        camMat.set(
+            c2w_arr[0][0], -c2w_arr[0][1], -c2w_arr[0][2], c2w_arr[0][3],
+            c2w_arr[1][0], -c2w_arr[1][1], -c2w_arr[1][2], c2w_arr[1][3],
+            c2w_arr[2][0], -c2w_arr[2][1], -c2w_arr[2][2], c2w_arr[2][3],
+            c2w_arr[3][0], -c2w_arr[3][1], -c2w_arr[3][2], c2w_arr[3][3] 
+        );
+        /*
+        let w2c = c2w.invert();
+        console.log(w2c);
+        */
+
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
         this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
@@ -108,16 +202,22 @@ class NeXviewerApp{
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
         // prepare scene
-        const material = new THREE.MeshBasicMaterial( { color: 0x999999, side: THREE.DoubleSide} );
+        const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const originMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
+        let cube = new THREE.Mesh( originBox, originMat )
+        this.scene.add(cube);
+
         var texloader = new THREE.TextureLoader();
         var tex = {
-            "a": texloader.load( "data/lego/mpi00_a.png" ), 
+            "a": texloader.load( "data/lego/mpi00_a_v2.png" ), 
             "b": texloader.load( "data/lego/mpi_b.png" ),
             "c": texloader.load( "data/lego/mpi00_c.png" ),
-            "coeff": texloader.load( "data/lego/mpi00_coeff8.png" )
+            "mpi_coeff": texloader.load( "data/lego/mpi00_coeff8.png" )
         };
         // load texture;
         this.camera.position.z = 4; // TODO: support proper position
+        //to rotate the same as c2w, need to disable  orbitcontrol update and enable this line
+        //this.camera.applyMatrix4(c2w); 
         this.mpis = {
             0:{
                 'planes':[]
@@ -141,24 +241,33 @@ class NeXviewerApp{
                     plane_id: { value: i },
                     num_layers: { value: 16 },
                     num_sublayers: { value: 12 },
+                    num_basis: { value: 8 },
                     num_col: { value: 20 },
+                    fov_tan: { value: fov_tan},
+                    depth: { value: depth},
                     mpi_a: { type: "t", value: tex.a},
                     mpi_b: { type: "t", value: tex.b},
                     mpi_c: { type: "t", value: tex.c},
-                    coeff: { type: "t", value: tex.coeff}
+                    mpi_coeff: { type: "t", value: tex.mpi_coeff}
                 },
                 vertexShader: planeVshader,
                 fragmentShader: planeFshader,
             });
             this.mpis[0].planes.push(new THREE.Mesh(plane_geo, material_planes));
-            this.mpis[0].planes[i].position.z = 4 - depth; // TODO: support proper position
+            this.mpis[0].planes[i].position.z = -depth; // TODO: support proper position
+            this.mpis[0].planes[i].applyMatrix4(c2w);
             this.scene.add(this.mpis[0].planes[i]);
         }        
-    }    
-    render(){
+    }
+    animate(){
+        this.stats.begin();
         this.renderer.render(this.scene, this.camera );
-        this.controls.update();
+        //this.controls.update();
+        this.stats.end();
         requestAnimationFrame(this.render.bind(this));
+    }
+    render(){
+        this.animate();
     }
 }
 
