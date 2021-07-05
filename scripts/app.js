@@ -21,7 +21,8 @@ void main()
 {
     vUv = uv;
     vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
-    vCoord = position;
+    vec4 modelPosition = modelMatrix * vec4( position, 1.0);
+    vCoord = (modelPosition.xyz / modelPosition.w);
     gl_Position = projectionMatrix * mvPosition;
 }
 `
@@ -104,9 +105,7 @@ vec2 stereographicProjection(vec3 point)
 vec3 getViewingAngle()
 {
     // viewing direction is a direction from point in 3D to camera postion
-    vec3 point = vCoord;
-    vec3 cam = cameraPosition;
-    vec3 viewing = normalize(point - cam);
+    vec3 viewing = normalize(vCoord - cameraPosition);
     return viewing;
 }
 
@@ -115,9 +114,11 @@ float getBasis(vec3 viewing, int basis_id)
     float basis;
     vec2 lookup = stereographicProjection(viewing);
     lookup = (lookup + 1.0) / 2.0; //rescale to [0,1];
+    lookup = clamp(lookup, 0.0, 1.0); //sterographic is unbound.
     lookup.x /= 4.0; //scale to 4 basis block
-    if(viewing.z < 0.0) lookup.x += 0.5;
-    if(basis_id > 4) lookup.x += 0.25;
+    lookup.y = - lookup.y; //uv map axis y is up, but in mpi_b Y is down
+    if(viewing.z <= 0.0) lookup.x += 0.5;
+    if(basis_id >= 4) lookup.x += 0.25;
     vec4 raw = texture2D(mpi_b, lookup);
     if(basis_id == 0 || basis_id == 4) basis = raw.r;
     if(basis_id == 1 || basis_id == 5) basis = raw.g;
@@ -146,9 +147,8 @@ vec3 getIllumination()
 
 void main(void)
 {
+    
     vec3 illumination = getIllumination();
-    
-    
     vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));
     color.rgb = color.rgb + illumination;
     color = clamp(color, 0.0, 1.0);
@@ -158,6 +158,7 @@ void main(void)
     vec4 color;
     color.rgb = viewing;
     */
+    
 
     int total_plane = num_layers * num_sublayers;
     float alpha = texture2D(mpi_a, uv2lookup(plane_id, total_plane)).r;
@@ -218,12 +219,12 @@ class NeXviewerApp{
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
         // prepare scene
-        
+        /*
         const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const originMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
         let cube = new THREE.Mesh( originBox, originMat )
         this.scene.add(cube);
-        
+        */
 
         var texloader = new THREE.TextureLoader();
         var tex = {
