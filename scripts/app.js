@@ -2,13 +2,26 @@
 
 // variable list for  Three.js glsl. 
 // @see https://stackoverflow.com/questions/15663859/threejs-predefined-shader-attributes-uniforms
+/*
+15: uniform mat4 modelViewMatrix;
+16: uniform mat4 projectionMatrix;
+17: uniform mat4 viewMatrix;
+18: uniform mat3 normalMatrix;
+19: uniform vec3 cameraPosition;
+20: uniform bool isOrthographic;
+27: attribute vec3 position;
+28: attribute vec3 normal;
+29: attribute vec2 uv;
+*/
 let planeVshader = `
 varying vec2 vUv;
+varying vec3 vCoord; 
 
 void main()
 {
     vUv = uv;
     vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+    vCoord = mvPosition.xyz / mvPosition.w;
     gl_Position = projectionMatrix * mvPosition;
 }
 `
@@ -32,6 +45,7 @@ uniform float fov_tan;
 uniform float depth;
 
 varying vec2 vUv;
+varying vec3 vCoord; 
 
 int mod_val(int x, int y)
 {
@@ -86,19 +100,15 @@ vec2 stereographicProjection(vec3 point)
     ret.x = ret.x / (1.0 - point.z + EPSILON);
     ret.y = ret.y / (1.0 - point.z + EPSILON);
     return ret;
-}
+}   
 vec3 getViewingAngle()
 {
-    mat4 c2w = inverse(viewMatrix);
-    
-    // create point in camera coordinate
-    vec3 point = vec3(vUv, -1.0);
-    point = (point * 2.0 - 1.0) * depth;     //change point into [-1, 1];
-    point.xy = point.xy  * fov_tan;
-    
     // viewing direction is a direction from point in 3D to camera postion
-    vec3 viewing = normalize(point - cameraPosition);
-
+    vec3 point = vCoord;
+    vec3 cam = cameraPosition;
+    // vec3 viewing = normalize(point - cam);
+    point.xyz = -point.xyz;
+    vec3 viewing = normalize(point);
     return viewing;
 }
 
@@ -106,7 +116,7 @@ float getBasis(vec3 viewing, int basis_id)
 {
     float basis;
     vec2 lookup = stereographicProjection(viewing);
-    lookup = lookup + 1.0 / 2.0; //rescale to [0,1];
+    lookup = (lookup + 1.0) / 2.0; //rescale to [0,1];
     lookup.x /= 4.0; //scale to 4 basis block
     if(viewing.z < 0.0) lookup.x += 0.5;
     if(basis_id > 4) lookup.x += 0.25;
@@ -115,6 +125,8 @@ float getBasis(vec3 viewing, int basis_id)
     if(basis_id == 1 || basis_id == 5) basis = raw.g;
     if(basis_id == 2 || basis_id == 6) basis = raw.b;
     if(basis_id == 3 || basis_id == 7) basis = raw.a;
+    //basis = 0.0;
+    basis = (basis * 2.0) - 1.0;
     return basis;
 }
 
@@ -124,10 +136,10 @@ vec3 getIllumination()
     vec3 illumination;
     int total_coeff = num_basis * num_layers;
     int layer_id = layerId();
-    for(int i = 0; i < num_layers; i++)
+    for(int i = 0; i < num_basis; i++)
     {
         vec4 coeff = texture2D(mpi_coeff, uv2lookup((i * num_layers) + layer_id, total_coeff));
-        coeff = coeff * 2.0 - 1.0;
+        coeff = (coeff * 2.0) - 1.0;
         float basis = getBasis(viewing, i);
         illumination = illumination + (coeff.rgb * basis);
     }
@@ -137,6 +149,7 @@ vec3 getIllumination()
 void main(void)
 {
     vec3 illumination = getIllumination();
+    
     /*
     vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));
     color.rgb = color.rgb + illumination;
@@ -146,6 +159,7 @@ void main(void)
     viewing = (viewing + 1.0) / 2.0;
     vec4 color;
     color.rgb = viewing;
+    
 
     int total_plane = num_layers * num_sublayers;
     float alpha = texture2D(mpi_a, uv2lookup(plane_id, total_plane)).r;
@@ -206,10 +220,12 @@ class NeXviewerApp{
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
         // prepare scene
+        
         const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const originMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
         let cube = new THREE.Mesh( originBox, originMat )
         this.scene.add(cube);
+        
 
         var texloader = new THREE.TextureLoader();
         var tex = {
@@ -272,6 +288,12 @@ class NeXviewerApp{
     }
     render(){
         this.animate();
+    }
+    get_bary(){
+        // get bary centric id and weight
+    }
+    color2id(){
+        return parseInt(Math.round( parseFloat(color) / 255.0 * (self.nMpis - 1) ))
     }
 }
 
