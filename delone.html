@@ -1,0 +1,69 @@
+<!-- This file is use to debug delone-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Delone Visualization</title>
+    <link rel="stylesheet" href="css/jquery-ui.min.css?u=1" type="text/css">
+    <link rel="stylesheet" href="css/rightui.css?u=3" type="text/css">
+    <link rel="stylesheet" href="css/rangeslider.css" type="text/css">
+    <style>
+        body{
+            overflow: hidden;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center; /*centers items on the line (the x-axis by default)*/
+            align-items: center; /*centers items on the cross-axis (y by default)*/
+        }
+    </style>
+  </head>
+    <div id="overlay" style="position: relative;">
+        <img id="delone_map" />
+        <div id="pointer" style="height: 4px; width: 4px; background-color: magenta;top: 0px;left: 0px; position: absolute;"></div>
+    </div>
+    <script>
+        var map_height = 0, map_width = 0, bary_type = 'stereo';
+        function findGetParameter(parameterName) {
+            var result = null, tmp = [];
+            location.search.substr(1).split("&").forEach(function (item) {
+                tmp = item.split("=");
+                if (tmp[0] === parameterName) result = decodeURIComponent(tmp[1]);
+            });
+            return result;
+        }
+        function setDeloneImage(scene_dir){
+            var path = scene_dir + '/bary_indices.png';
+            delone_map = document.getElementById("delone_map");
+            delone_map.onload = function(){
+                map_height = delone_map.height;
+                map_width = delone_map.width;
+                onStorageChange();
+            };
+            delone_map.src = path;
+        }
+        function onStorageChange(){
+            var bary_location = localStorage.getItem('bary_anchor');
+            if(bary_location != null){
+                bary_location = JSON.parse(bary_location);
+                setPointerLocation(bary_location.x,bary_location.y);
+            }
+        }
+        function setPointerLocation(x, y){
+            var pointer = document.getElementById('pointer');
+            pointer.style.top = "" + (y) + "px";
+            pointer.style.left = "" + (x) + "px";
+        }
+        function main(){
+            //var scene_dir = findGetParameter('scene');
+            var scene_dir = 'data/lego';
+            setDeloneImage(scene_dir);
+            window.addEventListener("storage", onStorageChange, false);
+        }
+        main();
+    </script>
+  <body>
+    
+  </body>
+</html>
