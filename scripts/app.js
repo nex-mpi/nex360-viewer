@@ -21,7 +21,7 @@ void main()
 {
     vUv = uv;
     vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
-    vCoord = mvPosition.xyz / mvPosition.w;
+    vCoord = position;
     gl_Position = projectionMatrix * mvPosition;
 }
 `
@@ -106,9 +106,7 @@ vec3 getViewingAngle()
     // viewing direction is a direction from point in 3D to camera postion
     vec3 point = vCoord;
     vec3 cam = cameraPosition;
-    // vec3 viewing = normalize(point - cam);
-    point.xyz = -point.xyz;
-    vec3 viewing = normalize(point);
+    vec3 viewing = normalize(point - cam);
     return viewing;
 }
 
@@ -150,16 +148,16 @@ void main(void)
 {
     vec3 illumination = getIllumination();
     
-    /*
+    
     vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));
     color.rgb = color.rgb + illumination;
     color = clamp(color, 0.0, 1.0);
-    */
+    /*
     vec3 viewing = getViewingAngle();
     viewing = (viewing + 1.0) / 2.0;
     vec4 color;
     color.rgb = viewing;
-    
+    */
 
     int total_plane = num_layers * num_sublayers;
     float alpha = texture2D(mpi_a, uv2lookup(plane_id, total_plane)).r;
