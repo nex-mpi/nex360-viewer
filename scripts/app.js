@@ -13,7 +13,7 @@
 28: attribute vec3 normal;
 29: attribute vec2 uv;
 */
-let planeVshader = `
+var planeVshader = `
 varying vec2 vUv;
 varying vec3 vCoord; 
 
@@ -27,7 +27,7 @@ void main()
 }
 `
 
-let planeFshader = `
+var planeFshader = `
 #ifdef GL_ES
 precision highp float;
 #endif
@@ -169,10 +169,15 @@ void main(void)
 
 
 class NeXviewerApp{
-    constructor(cfg){
+    constructor(cfg, p_bary_ids, p_bary_weights, p_bary_height, p_bary_width){
         this.cfg = cfg
+        this.bary_ids = p_bary_ids;
+        this.bary_weights = p_bary_weights;
+        this.bary_height = p_bary_height;
+        this.bary_width = p_bary_width;
+        this.bary_scaler = THREE.Vector2(this.bary_width - 1.0, this.bary_height-1.0);
+        this.bary_anchor = -1;
         this.intial();
-        
     }
     intial(){
         // intial stat
@@ -182,14 +187,14 @@ class NeXviewerApp{
 
         // inital global thing
         this.scene = new THREE.Scene();
-        let ratio = window.innerWidth / window.innerHeight
-        let c2w_arr = this.cfg.c2ws[0];
+        var ratio = window.innerWidth / window.innerHeight
+        var c2w_arr = this.cfg.c2ws[0];
         console.log(c2w_arr);
         console.log(c2w_arr[0][0]);
         console.log(c2w_arr[0][1]);
         console.log(c2w_arr[0][2]);
 
-        let c2w = new THREE.Matrix4();
+        var c2w = new THREE.Matrix4();
         //set is row major, internal is column major
         c2w.set(
             c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
@@ -197,20 +202,6 @@ class NeXviewerApp{
             c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
             c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
         );
-        let w2c = c2w.clone().invert();
-
-        let camMat = new THREE.Matrix4();
-        //set is row major, internal is column major
-        camMat.set(
-            c2w_arr[0][0], -c2w_arr[0][1], -c2w_arr[0][2], c2w_arr[0][3],
-            c2w_arr[1][0], -c2w_arr[1][1], -c2w_arr[1][2], c2w_arr[1][3],
-            c2w_arr[2][0], -c2w_arr[2][1], -c2w_arr[2][2], c2w_arr[2][3],
-            c2w_arr[3][0], -c2w_arr[3][1], -c2w_arr[3][2], c2w_arr[3][3] 
-        );
-        /*
-        let w2c = c2w.invert();
-        console.log(w2c);
-        */
 
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
         this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
@@ -222,7 +213,7 @@ class NeXviewerApp{
         /*
         const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const originMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
-        let cube = new THREE.Mesh( originBox, originMat )
+        var cube = new THREE.Mesh( originBox, originMat )
         this.scene.add(cube);
         */
 
@@ -248,11 +239,11 @@ class NeXviewerApp{
                 'planes':[]
             }
         }
-        let fov_tan = Math.tan(this.cfg.fov_radian / 2.0);
-        for(let i = 0; i < this.cfg.planes.length; i++){
-            let depth = this.cfg.planes[i];
-            let plane_width = fov_tan * depth * 2.0;
-            let plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
+        var fov_tan = Math.tan(this.cfg.fov_radian / 2.0);
+        for(var i = 0; i < this.cfg.planes.length; i++){
+            var depth = this.cfg.planes[i];
+            var plane_width = fov_tan * depth * 2.0;
+            var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
             var material_planes = new THREE.ShaderMaterial({
                 transparent: true,
                 side: THREE.DoubleSide,
@@ -288,17 +279,87 @@ class NeXviewerApp{
     render(){
         this.animate();
     }
-    get_bary(){
+    bary(){
         // get bary centric id and weight
+        let stero_location = this.sterographicProjection(this.camera.position);
+        anchor = this.get_bary_anchor(stero_location);
+        if(anchor == this.anchor){
+            return this.bary_data;
+        }
+        this.write_bary_anchor();
+        var ids = [], weights = [];
+        for(var i = 0; i < 3; i++){
+            ids.push(this.color2id(this.bary_ids[anchor+i]));
+            weights.push(this.color2float(this.bary_weights[anchor+i]));
+        }
+        this.bary_data = {"ids": ids, "weights": weights}
+        return this.bary_data;
     }
-    color2id(){
-        return parseInt(Math.round( parseFloat(color) / 255.0 * (self.nMpis - 1) ))
+    get_bary_anchor(v){
+        v.clampScalar(-1.0,1.0)
+            .addScalar(1.0)
+            .multiplyScalar(0.5)
+            .multiply(this.bary_scaler)
+            .round();
+        return (v.y * this.bary_width + v.x) * 4;
+    }
+    write_bary_anchor(anchor){        
+        localStorage.setItem('bary_anchor',JSON.stringify({
+            'x': anchor % this.bary_width, 
+            'y': Math.floor(anchor / this.bary_width)
+        }));
+    }
+    color2id(color){
+        return parseInt(Math.round( parseFloat(color) / 255.0 * (this.cfg.c2ws.length - 1) ))
+    }
+    color2float(color){
+        return parseFloat(color) / 255.0;
+    }
+    static sterographicProjection(vec){
+        return  new THREE.Vector2(
+            vec.x / (1.0 - vec.z + 1e-7),
+            vec.y / (1.0 - vec.z + EPSILON)
+        );
     }
 }
 
+function load_image_pixel(url, callback){
+    var canvas = document.createElement('canvas');
+    var context  = canvas.getContext('2d');
+    var img = new Image();
+    img.src = url;
+    img.onload = function(){
+        context.drawImage(img, 0, 0);
+        var data = context.getImageData(0, 0, this.width, this.height).data;
+        callback(data);
+    }
+}
 $(document).ready(function() {
-    $.getJSON("data/lego/config.json", function(cfg) {
-        window.app = new NeXviewerApp(cfg);
-        window.app.render()
+    var need_return = 3;
+    var count_return = 0;
+    var configs = null, bary_ids = null, bary_weight = null, bary_height = 0, bary_width = 0;
+    var waiting_return = function(){
+        count_return++;
+        if(count_return >= need_return){
+            window.app = new NeXviewerApp(
+                configs, bary_ids, bary_weight, bary_height, bary_width
+            );
+            window.app.render();
+        }
+    };
+    load_image_pixel('data/lego/bary_indices.png', function(p_inds, height, width){
+        bary_ids = p_inds;
+        bary_height = height;
+        bary_height = width;
+        waiting_return();
     });
+    load_image_pixel('data/lego/bary_weight.png', function(p_weight, height, width){
+        bary_weight = p_weight;
+        waiting_return();
+    });    
+    $.getJSON("data/lego/config.json", function(cfg) {
+        configs = cfg;
+        waiting_return();
+    });
+    
 });
