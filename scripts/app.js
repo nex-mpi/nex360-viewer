@@ -149,9 +149,10 @@ void main(void)
 {
     
     vec3 illumination = getIllumination();
-    vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));
+    vec4 color = texture2D(mpi_c, uv2lookup(layerId(), num_layers));   
     color.rgb = color.rgb + illumination;
     color = clamp(color, 0.0, 1.0);
+
     /*
     vec3 viewing = getViewingAngle();
     viewing = (viewing + 1.0) / 2.0;
@@ -206,14 +207,18 @@ class NeXviewerApp{
         this.renderer.setSize( window.innerWidth, window.innerHeight );
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
-        // prepare scene        
+        // prepare scene     
+        /*   
         const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const originMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
         var cube = new THREE.Mesh( originBox, originMat )
         this.scene.add(cube);
+        */
         this.init_texture();
-        // load texture;
-        this.camera.position.z = 4; // TODO: support proper position
+         // TODO: support proper position
+        this.camera.position.x = 0.8205487132072449;
+        this.camera.position.y =  3.3249945640563965;
+        this.camera.position.z = 2.066666603088379;
         //to rotate the same as c2w, need to disable  orbitcontrol update and enable this line
         //this.camera.applyMatrix4(c2w); 
         /*
@@ -237,41 +242,47 @@ class NeXviewerApp{
         var fov_tan = Math.tan(this.cfg.fov_radian / 2.0);
         for(var mpiId = 0; mpiId < this.cfg.c2ws.length; mpiId++)
         {
-        this.mpis[mpiId] = {"id": mpiId,"planes": []};
-        for(var i = 0; i < this.cfg.planes.length; i++){
-            var depth = this.cfg.planes[i];
-            var plane_width = fov_tan * depth * 2.0;
-            var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
-            var material_planes = new THREE.ShaderMaterial({
-                transparent: true,
-                side: THREE.DoubleSide,
-                uniforms: {    // custom uniforms (your textures)
-                    plane_id: { value: i },
-                    num_layers: { value: 16 },
-                    num_sublayers: { value: 12 },
-                    num_basis: { value: 8 },
-                    num_col: { value: 20 },
-                    fov_tan: { value: fov_tan},
-                    depth: { value: depth},
-                    mpi_a: { type: "t", value: this.textures[mpiId]['a']},
-                    mpi_b: { type: "t", value: this.textures['b']},
-                    mpi_c: { type: "t", value: this.textures[mpiId]['c']},
-                    mpi_coeff: { type: "t", value: this.textures[mpiId]['coeff']}
-                },
-                vertexShader: planeVshader,
-                fragmentShader: planeFshader,
-            });
-            
-            this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, material_planes)); 
-            this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
-            var c2w = this.matrices['c2ws'][mpiId].clone();
-            this.mpis[mpiId].planes[i].applyMatrix4(c2w);
-            this.scene.add(this.mpis[mpiId].planes[i]);
-            this.mpis[mpiId].planes[i].visible = false;
-            if(mpiId == 0){
-                this.mpis[mpiId].planes[i].visible = true;
+            this.mpis[mpiId] = {
+                "planes": [],
+                "group": new THREE.Group()
+            };
+            for(var i = 0; i < this.cfg.planes.length; i++){
+                var depth = this.cfg.planes[i];
+                var plane_width = fov_tan * depth * 2.0;
+                var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
+                var material_planes = new THREE.ShaderMaterial({
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    uniforms: {    // custom uniforms (your textures)
+                        plane_id: { value: i },
+                        num_layers: { value: 16 },
+                        num_sublayers: { value: 12 },
+                        num_basis: { value: 8 },
+                        num_col: { value: 20 },
+                        fov_tan: { value: fov_tan},
+                        depth: { value: depth},
+                        mpi_a: { type: "t", value: this.textures[mpiId]['a']},
+                        mpi_b: { type: "t", value: this.textures['b']},
+                        mpi_c: { type: "t", value: this.textures[mpiId]['c']},
+                        mpi_coeff: { type: "t", value: this.textures[mpiId]['coeff']}
+                    },
+                    vertexShader: planeVshader,
+                    fragmentShader: planeFshader,
+                });
+                
+                this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, material_planes)); 
+                this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
+                var c2w = this.matrices['c2ws'][mpiId].clone();
+                this.mpis[mpiId].planes[i].applyMatrix4(c2w);
+                //this.scene.add(this.mpis[mpiId].planes[i]);
+                //this.mpis[mpiId].planes[i].visible = false;
+                this.mpis[mpiId].group.add(this.mpis[mpiId].planes[i]);
             }
-        }        
+            this.mpis[mpiId].group.visible = false;
+            this.scene.add(this.mpis[mpiId].group);
+            if(mpiId == 0){
+                this.mpis[mpiId].group.visible = true;
+            }    
         }
     }
     init_texture(){
@@ -316,8 +327,8 @@ class NeXviewerApp{
         this.renderer.render(this.scene, this.camera );
         this.controls.update();
         /////       
+        this.write_camera_location();
         var bary = this.bary();        
-        
         var t = 2;
         if(bary['weights'][0] >= bary['weights'][1] && bary['weights'][0] >= bary['weights'][2]){
             t = 0;
@@ -326,19 +337,13 @@ class NeXviewerApp{
             t = 1;
         }
         var id = bary['ids'][t];
-        
+        localStorage.setItem('bary_address',JSON.stringify([id]));
         if(id != this.mpis['first_mpi_id']){
             var old_id = this.mpis['first_mpi_id'];
-            for(var i = 0; i < this.mpis[old_id].planes.length; i++){
-                this.mpis[old_id].planes[i].visible = false;
-            }
-            for(var i = 0; i < this.mpis[id].planes.length; i++){
-                this.mpis[id].planes[i].visible = true;
-            }           
+            this.mpis[old_id].group.visible = false;
+            this.mpis[id].group.visible = true;           
             this.mpis['first_mpi_id'] = id;
         }       
-        
-        /////
         this.stats.end();
         requestAnimationFrame(this.render.bind(this));
     }
@@ -348,8 +353,11 @@ class NeXviewerApp{
     }
     bary(){
         // get bary centric id and weight
-        var cam_norm = this.camera.position.clone().normalize();
-        cam_norm.z = cam_norm.z * -1;
+        var cam_location = this.camera.position.clone();
+        // NeX axis that use to create delone map is opencv convention 
+        cam_location.y = cam_location.y * -1;
+        cam_location.z = cam_location.z * -1;
+        var cam_norm = cam_location.normalize();
         var stero_location = this.sterographicProjection(cam_norm);
         var anchor = this.get_bary_anchor(stero_location);
         if(anchor == this.anchor){
@@ -371,13 +379,27 @@ class NeXviewerApp{
         v.multiplyScalar(0.5);
         v.multiply(this.bary_scaler);
         v.round();
-        return (v.y * this.bary_width + v.x) * 4;
+        return (v.x * this.bary_width + v.y) * 4;
     }
     write_bary_anchor(anchor){ 
         anchor = anchor / 4;       
         localStorage.setItem('bary_anchor',JSON.stringify({
             'x': anchor % this.bary_width, 
             'y': Math.floor(anchor / this.bary_width)
+        }));
+    }
+    write_camera_location(){
+        localStorage.setItem('camera_location',JSON.stringify({
+            'x': this.camera.position.x, 
+            'y': this.camera.position.y,
+            'z': this.camera.position.z
+        }));
+    }
+    write_selected_mpi(){
+        localStorage.setItem('camera_location',JSON.stringify({
+            'x': this.camera.position.x, 
+            'y': this.camera.position.y,
+            'z': this.camera.position.z
         }));
     }
     color2id(color){

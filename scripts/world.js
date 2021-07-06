@@ -1,0 +1,132 @@
+// World for visualization
+
+class NeXworld{
+    constructor(cfg){
+        this.cfg = cfg
+        this.intial();
+    }
+    intial(){
+        // inital global thing
+        this.scene = new THREE.Scene();
+        var ratio = window.innerWidth / window.innerHeight
+        this.previous_mpi = 0;
+        this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
+        this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
+        this.renderer.setSize( window.innerWidth, window.innerHeight );
+        this.renderer.setClearColor( 0x000000, 1 ); //change to white background
+        document.body.appendChild(this.renderer.domElement );       
+        // prepare scene  
+        //add grid
+        var gridGround = new THREE.GridHelper( 10, 30,0x3f3f3f, 0x3f3f3f );
+        this.scene.add(gridGround);
+        gridGround.rotation.x = Math.PI / 2;
+      
+        // BUILD A LEGO
+        const originBox = new THREE.BoxGeometry(0.65, 1.2, 0.01);
+        const originMat = new THREE.MeshBasicMaterial( { color: 0xcdba92, side: THREE.DoubleSide} );
+        var lego_group = new THREE.Group();
+        lego_group.add(new THREE.Mesh( originBox, originMat ))
+        var lego_mainbox = new THREE.Mesh( new THREE.BoxGeometry(0.4, 0.8, 0.6), new THREE.MeshBasicMaterial( { color: 0xf6c924, side: THREE.DoubleSide} ) )
+        lego_mainbox.position.y = 0.2;
+        lego_mainbox.position.z = 0.3;
+        lego_group.add(lego_mainbox);
+        var lego_pickup = new THREE.Mesh( new THREE.BoxGeometry(0.3, 0.4, 0.2), new THREE.MeshBasicMaterial( { color: 0x957c1a, side: THREE.DoubleSide} ) )
+        lego_pickup.position.y = -0.2;
+        lego_pickup.position.z = 0.6;
+        lego_group.add(lego_pickup);
+        this.scene.add(lego_group);
+
+        this.virtual_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0x00ffff, side: THREE.DoubleSide} ) )
+        this.virtual_camera.position.z = 4.0;
+        this.scene.add(this.virtual_camera);
+        this.init_texture();
+        // load texture;
+        this.camera.position.z = 20; // TODO: support proper position        
+        this.mpis = {};
+        this.coneMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
+        this.coneTargetMat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide} );
+        for(var i = 0; i < this.cfg.c2ws.length; i++)
+        {
+            const cone_geo = new THREE.ConeGeometry(0.1, 0.5);  
+            this.mpis[i] = {}              
+            this.mpis[i]['cone'] = new THREE.Mesh(cone_geo, this.coneMat); 
+            this.mpis[i]['cone'].rotation.x = Math.PI / 2.0;
+            var c2w = this.matrices['c2ws'][i].clone();
+            this.mpis[i]['cone'].applyMatrix4(c2w);
+            this.scene.add(this.mpis[i]['cone']);
+        }
+        this.mpis[0]['cone'].material = this.coneTargetMat;
+    }
+    init_texture(){
+        this.matrices = {
+            'c2ws': [],
+            'w2cs': []
+        }
+        for(var i = 0; i < this.cfg.c2ws.length; i++){
+            var c2w_arr = this.cfg.c2ws[i];
+            var c2w = new THREE.Matrix4();
+            //set is row major, internal is column major
+            c2w.set(
+                c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
+                c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
+                c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
+                c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
+            );
+            this.matrices['c2ws'].push(c2w);
+            //this.matrices['w2cs'].push(c2w.clone().invert());
+        }
+        var c2w = new THREE.Matrix4();        
+    }
+    animate(){
+        this.renderer.render(this.scene, this.camera );
+        this.controls.update();  
+        requestAnimationFrame(this.render.bind(this));
+    }
+    render(){
+        this.renderer.compile(this.scene, this.camera);
+        this.animate();
+    }
+    write_camera_location(){
+        localStorage.setItem('camera_location',JSON.stringify({
+            'x': this.camera.position.x, 
+            'y': this.camera.position.y,
+            'z': this.camera.position.z
+        }));
+    }
+    write_selected_mpi(){
+        localStorage.setItem('camera_location',JSON.stringify({
+            'x': this.camera.position.x, 
+            'y': this.camera.position.y,
+            'z': this.camera.position.z
+        }));
+    }
+}
+
+$(document).ready(function() {   
+    $.getJSON("data/lego/config.json", function(cfg) {
+        window.app = new NeXworld(cfg);
+        window.app.render();        
+        function onStorageChange(){
+            var camera_location = localStorage.getItem('camera_location');
+            if(camera_location != null){
+                camera_location = JSON.parse(camera_location);
+                this.app.virtual_camera.position.x = camera_location.x;
+                this.app.virtual_camera.position.y = camera_location.y;
+                this.app.virtual_camera.position.z = camera_location.z;
+            }
+            var bary_address = localStorage.getItem('bary_address');
+            if(bary_address != null){
+                bary_address = JSON.parse(bary_address);
+                for(var i = 0; i < bary_address.length; i++){
+                    console.log();
+                    this.app.mpis[this.app.previous_mpi].cone.material = this.app.coneMat;
+                    this.app.mpis[bary_address[i]].cone.material = this.app.coneTargetMat;
+                    this.app.previous_mpi = bary_address[i]
+                }
+            }
+        }
+        window.addEventListener("storage", onStorageChange, false);
+    });
+    
+});
