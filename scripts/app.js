@@ -253,10 +253,10 @@ class NeXviewerApp{
                     num_col: { value: 20 },
                     fov_tan: { value: fov_tan},
                     depth: { value: depth},
-                    mpi_a: { type: "t", value: this.textures[0]['a']},
+                    mpi_a: { type: "t", value: this.textures[mpiId]['a']},
                     mpi_b: { type: "t", value: this.textures['b']},
-                    mpi_c: { type: "t", value: this.textures[0]['c']},
-                    mpi_coeff: { type: "t", value: this.textures[0]['coeff']}
+                    mpi_c: { type: "t", value: this.textures[mpiId]['c']},
+                    mpi_coeff: { type: "t", value: this.textures[mpiId]['coeff']}
                 },
                 vertexShader: planeVshader,
                 fragmentShader: planeFshader,
@@ -264,11 +264,12 @@ class NeXviewerApp{
             
             this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, material_planes)); 
             this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
-            var c2w = this.matrices['c2ws'][mpiId];
+            var c2w = this.matrices['c2ws'][mpiId].clone();
             this.mpis[mpiId].planes[i].applyMatrix4(c2w);
             this.scene.add(this.mpis[mpiId].planes[i]);
-            if(mpiId > 0){
-                this.mpis[mpiId].planes[i].visible = false;
+            this.mpis[mpiId].planes[i].visible = false;
+            if(mpiId < 30){
+                this.mpis[mpiId].planes[i].visible = true;
             }
         }        
         }
@@ -279,10 +280,11 @@ class NeXviewerApp{
             "b": texloader.load("data/lego/mpi_b.png")
         }
         for(var i = 0; i < this.cfg.c2ws.length; i++){
+            var id = String(i).padStart(2, '0');
             this.textures[i] = {
-                "a": texloader.load( "data/lego/mpi00_a_v2.png" ), 
-                "c": texloader.load( "data/lego/mpi00_c.png" ),
-                "coeff": texloader.load( "data/lego/mpi00_coeff8.png" )
+                "a": texloader.load( "data/lego/mpi"+id+"_a_v2.png" ), 
+                "c": texloader.load( "data/lego/mpi"+id+"_c.png" ),
+                "coeff": texloader.load( "data/lego/mpi"+id+"_coeff8.png" )
             };
         }
         this.matrices = {
@@ -293,14 +295,23 @@ class NeXviewerApp{
             var c2w_arr = this.cfg.c2ws[i];
             var c2w = new THREE.Matrix4();
             //set is row major, internal is column major
+            
             c2w.set(
                 c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
                 c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
                 c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
                 c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
             );
+            /*
+            c2w.set(
+                c2w_arr[0][0], c2w_arr[1][0], c2w_arr[2][0], c2w_arr[3][0],
+                c2w_arr[0][1], c2w_arr[1][1], c2w_arr[2][1], c2w_arr[3][1],
+                c2w_arr[0][2], c2w_arr[1][2], c2w_arr[2][2], c2w_arr[3][2],
+                c2w_arr[0][3], c2w_arr[1][3], c2w_arr[2][3], c2w_arr[3][3] 
+            );
+            */
             this.matrices['c2ws'].push(c2w);
-            this.matrices['w2cs'].push(c2w.clone().invert());
+            //this.matrices['w2cs'].push(c2w.clone().invert());
         }
         
 
@@ -323,6 +334,7 @@ class NeXviewerApp{
             t = 1;
         }
         var id = bary['ids'][t];
+        /*
         if(id != this.mpis['first_mpi_id']){
             var old_id = this.mpis['first_mpi_id'];
             for(var i = 0; i < this.mpis[old_id].planes.length; i++){
@@ -330,23 +342,10 @@ class NeXviewerApp{
             }
             for(var i = 0; i < this.mpis[id].planes.length; i++){
                 this.mpis[id].planes[i].visible = true;
-            }
+            }           
             this.mpis['first_mpi_id'] = id;
-        }
-        /*
-        if(id != this.mpis[0]['id']){
-            var old_id = this.mpis[0]['id'];
-            var mixmat = this.matrices['c2ws'][id].clone()
-            mixmat.multiply(this.matrices['w2cs'][old_id]);
-            this.mpis[0]['id'] = id;
-            for(var i = 0; i < this.mpis[0].planes.length; i++){
-                this.mpis[0].planes[i].applyMatrix4(mixmat);
-                this.mpis[0].planes[i].material.uniforms.mpi_a.value = this.textures[id]['a'];
-                this.mpis[0].planes[i].material.uniforms.mpi_c.value = this.textures[id]['c'];
-                this.mpis[0].planes[i].material.uniforms.mpi_coeff.value = this.textures[id]['coeff'];
-            }            
-        }
-        */
+        }*/       
+        
         /////
         this.stats.end();
         requestAnimationFrame(this.render.bind(this));
