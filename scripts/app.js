@@ -204,10 +204,7 @@ class NeXviewerApp{
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
         this.composer = new THREE.EffectComposer(this.renderer);
-        //this.clearPass = new THREE.ClearPass(0xffffff,1);
-        //this.composer.addPass(this.clearPass);
         this.renderPass = new THREE.RenderPass(this.scene, this.camera);
-        //this.renderPass.clear = false;
         this.composer.addPass(this.renderPass);
         this.opacityPass = new THREE.ShaderPass(THREE.CopyShader);
         this.opacityPass.material.transparent = true;
@@ -325,19 +322,8 @@ class NeXviewerApp{
         /////       
         this.write_camera_location();
         var bary = this.bary();     
-        /*  
-        var t = 2;
-        if(bary['weights'][0] >= bary['weights'][1] && bary['weights'][0] >= bary['weights'][2]){
-            t = 0;
-        }
-        if(bary['weights'][1] >= bary['weights'][0] && bary['weights'][1] >= bary['weights'][2]){
-            t = 1;
-        }
-        */
         localStorage.setItem('bary_address',JSON.stringify([id]));
-        //this.renderer.clear();
         this.renderer.autoClear = true;
-        //this.clearPass.enabled = true;
         for(var b = 0; b < 3; b++){
             var id = bary['ids'][b];
             var weight = bary['weights'][b];
@@ -351,32 +337,10 @@ class NeXviewerApp{
                 this.mpis_ids[b]= id;            
             }
             this.opacityPass.uniforms.opacity.value = weight;
-            //this.renderer.render(this.scene, this.camera );
             this.renderer.autoClear = false;
             this.composer.render();
-            //this.clearPass.enabled = false;
             this.mpis[b].group.visible = false;
         }
-        
-        /*
-        if(id != this.mpis['first_mpi_id']){
-            //var old_id = this.mpis['first_mpi_id'];
-            //this.mpis[old_id].group.visible = false;
-            //this.mpis[id].group.visible = true;           
-            //this.mpis['first_mpi_id'] = id;
-            this.opacitypass.uniforms.opacity.value = 0.2;
-            var old_id = this.mpis['first_mpi_id'];
-            this.mpis[0].group.applyMatrix4(this.matrices['w2cs'][old_id]);
-            this.mpis[0].group.applyMatrix4(this.matrices['c2ws'][id]);
-            for(var planeId = 0; planeId < this.cfg.planes.length; planeId++){
-                this.mpis[0].planes[planeId].material = this.materials[id][planeId];
-                //this.mpis[0].planes[planeId].material.uniforms.mpi_a.value = this.textures[id].a;
-                //this.mpis[0].planes[planeId].material.uniforms.mpi_c.value = this.textures[id].c;
-                //this.mpis[0].planes[planeId].material.uniforms.mpi_coeff.value = this.textures[id].coeff;
-            }
-            this.mpis['first_mpi_id'] = id;            
-        }*/       
-        
         ///////
         this.stats.end();
         requestAnimationFrame(this.render.bind(this));
