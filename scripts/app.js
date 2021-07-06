@@ -170,7 +170,7 @@ void main(void)
 
 
 class NeXviewerApp{
-    constructor(cfg, p_bary_ids, p_bary_weights, p_bary_height, p_bary_width){
+    constructor(cfg, p_bary_ids, p_bary_weights, p_bary_height, p_bary_width, callback){
         this.cfg = cfg
         this.bary_ids = p_bary_ids;
         this.bary_weights = p_bary_weights;
@@ -178,35 +178,34 @@ class NeXviewerApp{
         this.bary_width = p_bary_width;
         this.bary_scaler = new THREE.Vector2(this.bary_width - 1.0, this.bary_height-1.0);
         this.bary_anchor = -1;
-        this.intial();
+        this.initThreejs();
+        this.initMatrices();
+        var self = this;
+        this.loadTexture(function(){
+            self.initScene();
+            if(typeof(callback) === typeof(Function)){
+                callback(self);
+            }
+        });
     }
-    intial(){
+    initThreejs(){
         // intial stat
         this.stats = new Stats();
         this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
         document.body.appendChild(this.stats.dom);
-
+ 
         // inital global thing
         this.scene = new THREE.Scene();
         var ratio = window.innerWidth / window.innerHeight
-        /*
-        var c2w_arr = this.cfg.c2ws[0];
-
-        var c2w = new THREE.Matrix4();
-        //set is row major, internal is column major
-        c2w.set(
-            c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
-            c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
-            c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
-            c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
-        );
-        */
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
+        this.camera.up.set( 0, 0, 1 );
         this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         this.renderer.setSize( window.innerWidth, window.innerHeight );
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
+    }
+    initScene(){       
         // prepare scene     
         /*   
         const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -214,43 +213,26 @@ class NeXviewerApp{
         var cube = new THREE.Mesh( originBox, originMat )
         this.scene.add(cube);
         */
-        this.init_texture();
          // TODO: support proper position
         this.camera.position.x = 0.8205487132072449;
         this.camera.position.y =  3.3249945640563965;
         this.camera.position.z = 2.066666603088379;
-        //to rotate the same as c2w, need to disable  orbitcontrol update and enable this line
-        //this.camera.applyMatrix4(c2w); 
-        /*
-        this.mpis = {
-            0:{
-                'id': 0,
-                'planes':[]
-            },
-            1:{
-                'id': 0,
-                'planes':[]
-            },
-            2:{
-                'id': 0,
-                'planes':[]
-            }
-        }
-        */
+        this.materials = {};
         this.mpis = {};
         this.mpis['first_mpi_id'] = 0;
         var fov_tan = Math.tan(this.cfg.fov_radian / 2.0);
-        for(var mpiId = 0; mpiId < this.cfg.c2ws.length; mpiId++)
+        for(var mpiId = 0; mpiId < 30; mpiId++) //this.cfg.c2ws.length
         {
             this.mpis[mpiId] = {
                 "planes": [],
                 "group": new THREE.Group()
             };
+            this.materials[mpiId] = [];
             for(var i = 0; i < this.cfg.planes.length; i++){
                 var depth = this.cfg.planes[i];
                 var plane_width = fov_tan * depth * 2.0;
                 var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
-                var material_planes = new THREE.ShaderMaterial({
+                this.materials[mpiId].push(new THREE.ShaderMaterial({
                     transparent: true,
                     side: THREE.DoubleSide,
                     uniforms: {    // custom uniforms (your textures)
@@ -268,36 +250,47 @@ class NeXviewerApp{
                     },
                     vertexShader: planeVshader,
                     fragmentShader: planeFshader,
-                });
-                
-                this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, material_planes)); 
+                }));                
+                this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, this.materials[mpiId][i])); 
                 this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
-                var c2w = this.matrices['c2ws'][mpiId].clone();
-                this.mpis[mpiId].planes[i].applyMatrix4(c2w);
-                //this.scene.add(this.mpis[mpiId].planes[i]);
-                //this.mpis[mpiId].planes[i].visible = false;
                 this.mpis[mpiId].group.add(this.mpis[mpiId].planes[i]);
             }
             this.mpis[mpiId].group.visible = false;
+            var c2w = this.matrices['c2ws'][mpiId].clone();
+            this.mpis[mpiId].group.applyMatrix4(c2w);
             this.scene.add(this.mpis[mpiId].group);
             if(mpiId == 0){
                 this.mpis[mpiId].group.visible = true;
             }    
         }
     }
-    init_texture(){
+    loadTexture(callback){
+        var total_texture = 1 + 30 * (3);
+        var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
+        var self = this;
+        var textureCallback = function(texture){
+            loaded_texture++;
+            console.log('texture loaded... '+ loaded_texture +' / ' + total_texture);
+            self.renderer.initTexture(texture);
+            if(loaded_texture >= total_texture){
+                console.log('load finished')
+                callback();
+            }
+        }
         this.textures = {
-            "b": texloader.load("data/lego/mpi_b.png")
+            "b": texloader.load("data/lego/mpi_b.png", textureCallback)
         }
         for(var i = 0; i < this.cfg.c2ws.length; i++){
             var id = String(i).padStart(2, '0');
             this.textures[i] = {
-                "a": texloader.load( "data/lego/mpi"+id+"_a_v2.png" ), 
-                "c": texloader.load( "data/lego/mpi"+id+"_c.png" ),
-                "coeff": texloader.load( "data/lego/mpi"+id+"_coeff8.png" )
+                "a": texloader.load( "data/lego/mpi"+id+"_a_v2.png", textureCallback), 
+                "c": texloader.load( "data/lego/mpi"+id+"_c.png" , textureCallback),
+                "coeff": texloader.load( "data/lego/mpi"+id+"_coeff8.png", textureCallback)
             };
-        }
+        } 
+    }
+    initMatrices(){
         this.matrices = {
             'c2ws': [],
             'w2cs': []
@@ -305,8 +298,7 @@ class NeXviewerApp{
         for(var i = 0; i < this.cfg.c2ws.length; i++){
             var c2w_arr = this.cfg.c2ws[i];
             var c2w = new THREE.Matrix4();
-            //set is row major, internal is column major
-            
+            //set is row major, internal is column major`    
             c2w.set(
                 c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
                 c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
@@ -314,13 +306,8 @@ class NeXviewerApp{
                 c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
             );
             this.matrices['c2ws'].push(c2w);
-            //this.matrices['w2cs'].push(c2w.clone().invert());
+            this.matrices['w2cs'].push(c2w.clone().invert());
         }
-        
-
-        var c2w = new THREE.Matrix4();
-        
-        
     }
     animate(){
         this.stats.begin();
@@ -328,7 +315,8 @@ class NeXviewerApp{
         this.controls.update();
         /////       
         this.write_camera_location();
-        var bary = this.bary();        
+        var bary = this.bary();     
+           
         var t = 2;
         if(bary['weights'][0] >= bary['weights'][1] && bary['weights'][0] >= bary['weights'][2]){
             t = 0;
@@ -339,16 +327,39 @@ class NeXviewerApp{
         var id = bary['ids'][t];
         localStorage.setItem('bary_address',JSON.stringify([id]));
         if(id != this.mpis['first_mpi_id']){
+            /*
             var old_id = this.mpis['first_mpi_id'];
             this.mpis[old_id].group.visible = false;
             this.mpis[id].group.visible = true;           
             this.mpis['first_mpi_id'] = id;
+            */
+            var old_id = this.mpis['first_mpi_id'];
+            this.mpis[0].group.applyMatrix4(this.matrices['w2cs'][old_id]);
+            this.mpis[0].group.applyMatrix4(this.matrices['c2ws'][id]);
+            for(var planeId = 0; planeId < this.cfg.planes.length; planeId++){
+                this.mpis[0].planes[planeId].material = this.materials[id][planeId];
+                /*
+                this.mpis[0].planes[planeId].material.uniforms.mpi_a.value = this.textures[id].a;
+                this.mpis[0].planes[planeId].material.uniforms.mpi_c.value = this.textures[id].c;
+                this.mpis[0].planes[planeId].material.uniforms.mpi_coeff.value = this.textures[id].coeff;
+                */
+            }
+            this.mpis['first_mpi_id'] = id;            
         }       
+        
+        ///////
         this.stats.end();
         requestAnimationFrame(this.render.bind(this));
     }
+    cleanupPrecompile(){
+        for(var i = 1; i < 30; i++){
+            this.mpis[i].group.clear();
+            this.mpis[i].group.removeFromParent();
+        }
+    }
     render(){
         this.renderer.compile(this.scene, this.camera);
+        this.cleanupPrecompile();
         this.animate();
     }
     bary(){
@@ -438,9 +449,11 @@ $(document).ready(function() {
         count_return++;
         if(count_return >= need_return){
             window.app = new NeXviewerApp(
-                configs, bary_ids, bary_weight, bary_height, bary_width
+                configs, bary_ids, bary_weight, bary_height, bary_width,
+                function(nexapp){
+                    nexapp.render();
+                }
             );
-            window.app.render();
         }
     };
     load_image_pixel('data/lego/bary_indices.png', function(p_inds, height, width){
