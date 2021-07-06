@@ -268,7 +268,7 @@ class NeXviewerApp{
             this.mpis[mpiId].planes[i].applyMatrix4(c2w);
             this.scene.add(this.mpis[mpiId].planes[i]);
             this.mpis[mpiId].planes[i].visible = false;
-            if(mpiId < 30){
+            if(mpiId == 0){
                 this.mpis[mpiId].planes[i].visible = true;
             }
         }        
@@ -302,14 +302,6 @@ class NeXviewerApp{
                 c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
                 c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
             );
-            /*
-            c2w.set(
-                c2w_arr[0][0], c2w_arr[1][0], c2w_arr[2][0], c2w_arr[3][0],
-                c2w_arr[0][1], c2w_arr[1][1], c2w_arr[2][1], c2w_arr[3][1],
-                c2w_arr[0][2], c2w_arr[1][2], c2w_arr[2][2], c2w_arr[3][2],
-                c2w_arr[0][3], c2w_arr[1][3], c2w_arr[2][3], c2w_arr[3][3] 
-            );
-            */
             this.matrices['c2ws'].push(c2w);
             //this.matrices['w2cs'].push(c2w.clone().invert());
         }
@@ -334,7 +326,7 @@ class NeXviewerApp{
             t = 1;
         }
         var id = bary['ids'][t];
-        /*
+        
         if(id != this.mpis['first_mpi_id']){
             var old_id = this.mpis['first_mpi_id'];
             for(var i = 0; i < this.mpis[old_id].planes.length; i++){
@@ -344,7 +336,7 @@ class NeXviewerApp{
                 this.mpis[id].planes[i].visible = true;
             }           
             this.mpis['first_mpi_id'] = id;
-        }*/       
+        }       
         
         /////
         this.stats.end();
