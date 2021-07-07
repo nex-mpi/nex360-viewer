@@ -9,8 +9,9 @@ class NeXworld{
         // inital global thing
         this.scene = new THREE.Scene();
         var ratio = window.innerWidth / window.innerHeight
-        this.previous_mpi = 0;
+        this.previous_mpi = [0,0,0];
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
+        this.camera.up.set( 0, 0, 1 );
         this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         this.renderer.setSize( window.innerWidth, window.innerHeight );
@@ -87,20 +88,6 @@ class NeXworld{
         this.renderer.compile(this.scene, this.camera);
         this.animate();
     }
-    write_camera_location(){
-        localStorage.setItem('camera_location',JSON.stringify({
-            'x': this.camera.position.x, 
-            'y': this.camera.position.y,
-            'z': this.camera.position.z
-        }));
-    }
-    write_selected_mpi(){
-        localStorage.setItem('camera_location',JSON.stringify({
-            'x': this.camera.position.x, 
-            'y': this.camera.position.y,
-            'z': this.camera.position.z
-        }));
-    }
 }
 
 $(document).ready(function() {   
@@ -119,10 +106,9 @@ $(document).ready(function() {
             if(bary_address != null){
                 bary_address = JSON.parse(bary_address);
                 for(var i = 0; i < bary_address.length; i++){
-                    console.log();
-                    this.app.mpis[this.app.previous_mpi].cone.material = this.app.coneMat;
+                    this.app.mpis[this.app.previous_mpi[i]].cone.material = this.app.coneMat;
                     this.app.mpis[bary_address[i]].cone.material = this.app.coneTargetMat;
-                    this.app.previous_mpi = bary_address[i]
+                    this.app.previous_mpi[i] = bary_address[i]
                 }
             }
         }

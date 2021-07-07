@@ -129,17 +129,49 @@ float getBasis(vec3 viewing, int basis_id)
     return basis;
 }
 
+vec4 lookupBasis(vec3 viewing, int basis_id)
+{
+    vec2 lookup = stereographicProjection(viewing);
+    lookup = (lookup + 1.0) / 2.0; //rescale to [0,1];
+    lookup = clamp(lookup, 0.0, 1.0); //sterographic is unbound.
+    lookup.x /= 4.0; //scale to 4 basis block
+    lookup.y = - lookup.y; //uv map axis y is up, but in mpi_b Y is down
+    if(viewing.z <= 0.0) lookup.x += 0.5;
+    if(basis_id >= 4) lookup.x += 0.25;
+    vec4 raw = texture2D(mpi_b, lookup);
+    return raw;
+}
+
+float parseBasis(vec4 raw,int basis_id)
+{
+    float basis;
+    if(basis_id == 0 || basis_id == 4) basis = raw.r;
+    if(basis_id == 1 || basis_id == 5) basis = raw.g;
+    if(basis_id == 2 || basis_id == 6) basis = raw.b;
+    if(basis_id == 3 || basis_id == 7) basis = raw.a;
+    //basis = 0.0;
+    basis = (basis * 2.0) - 1.0;
+    return basis;
+}
+
 vec3 getIllumination()
 {
     vec3 viewing = getViewingAngle();
     vec3 illumination;
     int total_coeff = num_basis * num_layers;
     int layer_id = layerId();
+    vec4 basis0 = lookupBasis(viewing, 0);
+    vec4 basis4 = lookupBasis(viewing, 4);
+    float basis;
     for(int i = 0; i < num_basis; i++)
     {
         vec4 coeff = texture2D(mpi_coeff, uv2lookup((i * num_layers) + layer_id, total_coeff));
         coeff = (coeff * 2.0) - 1.0;
-        float basis = getBasis(viewing, i);
+        if(i < 4){
+            basis = parseBasis(basis0, i);
+        }else{
+            basis = parseBasis(basis4, i);
+        }
         illumination = illumination + (coeff.rgb * basis);
     }
     return illumination;
@@ -322,7 +354,7 @@ class NeXviewerApp{
         /////       
         this.write_camera_location();
         var bary = this.bary();     
-        localStorage.setItem('bary_address',JSON.stringify([id]));
+        localStorage.setItem('bary_address',JSON.stringify(bary['ids']));
         this.renderer.autoClear = true;
         for(var b = 0; b < 3; b++){
             var id = bary['ids'][b];
