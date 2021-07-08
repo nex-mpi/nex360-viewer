@@ -42,23 +42,32 @@ class NeXviewerApp{
         // inital composer for barycentric combine 3 mpis
         // TODO: implement combine pass 
         // https://github.com/mrdoob/three.js/blob/dev/examples/webgl_postprocessing_unreal_bloom_selective.html
-        this.finalComposer = new THREE.EffectComposer(this.renderer);
         this.renderPasses = [];
         this.composers = [];
         for(var i = 0; i < 3; i++){
             this.renderPasses.push();
             this.renderPasses(this.scenes[i], this.camera);
-            this.composers.push();
+            this.composers.push(THREE.EffectComposer(this.renderer););
             this.composer.addPass(this.renderPasses[i]);
         }
-        
+        this.finalComposer = new THREE.EffectComposer(this.renderer);
+        this.blendPass = new ShaderPass(new THREE.ShaderMaterial({
+            transparent: true,
+            uniforms: {
+                // baseTexture: {  type: "t", value: null },
+                mpi1: { type: "t", value: this.composers[0].renderTarget2.texture },
+                mpi2: { type: "t",  value: this.composers[1].renderTarget2.texture },
+                mpi3: { type: "t", value: this.composers[2].renderTarget2.texture },
+                weight1: { value: 1.0 / 3.0 },
+                weight2: { value: 1.0 / 3.0 },
+                weight3: { value: 1.0 / 3.0 }
+            },
+            vertexShader: blendVertexShader,
+            fragmentShader: blendFragmentShader,
+            defines: {}
+        }));
+        this.finalComposer.addPass(this.blendPass);
         document.body.appendChild(this.renderer.domElement );       
-        
-        this.renderPass = new THREE.RenderPass();
-        this.composer.addPass(this.renderPass);
-        this.opacityPass = new THREE.ShaderPass(THREE.CopyShader);
-        this.opacityPass.material.transparent = true;
-        this.composer.addPass(this.opacityPass);
     }
     initScene(){       
         // prepare scene     
@@ -93,19 +102,26 @@ class NeXviewerApp{
                     side: THREE.DoubleSide,
                     uniforms: {    // custom uniforms (your textures)
                         plane_id: { value: i },
-                        num_layers: { value: 16 },
-                        num_sublayers: { value: 12 },
-                        num_basis: { value: 8 },
-                        num_col: { value: 20 },
-                        fov_tan: { value: fov_tan},
                         depth: { value: depth},
-                        mpi_a: { type: "t", value: this.textures[mpiId]['a']},
+                        mpi_a1: { type: "t", value: this.textures[mpiId]['a1']},
+                        mpi_a2: { type: "t", value: this.textures[mpiId]['a2']},
+                        mpi_a3: { type: "t", value: this.textures[mpiId]['a3']},
+                        mpi_a4: { type: "t", value: this.textures[mpiId]['a4']},
+                        mpi_a5: { type: "t", value: this.textures[mpiId]['a5']},
+                        mpi_a6: { type: "t", value: this.textures[mpiId]['a6']},
                         mpi_b: { type: "t", value: this.textures['b']},
                         mpi_c: { type: "t", value: this.textures[mpiId]['c']},
-                        mpi_coeff: { type: "t", value: this.textures[mpiId]['coeff']}
+                        mpi_k1: { type: "t", value: this.textures[mpiId]['k1']},
+                        mpi_k2: { type: "t", value: this.textures[mpiId]['k2']},
+                        mpi_k3: { type: "t", value: this.textures[mpiId]['k3']},
+                        mpi_k4: { type: "t", value: this.textures[mpiId]['k4']},
+                        mpi_k5: { type: "t", value: this.textures[mpiId]['k5']},
+                        mpi_k6: { type: "t", value: this.textures[mpiId]['k6']},
+                        mpi_k7: { type: "t", value: this.textures[mpiId]['k7']},
+                        mpi_k8: { type: "t", value: this.textures[mpiId]['k8']}
                     },
-                    vertexShader: planeVshader,
-                    fragmentShader: planeFshader,
+                    vertexShader: planeVertexShader,
+                    fragmentShader: planeFragmentShader,
                 }));                
                 this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, this.materials[mpiId][i])); 
                 this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
@@ -114,7 +130,7 @@ class NeXviewerApp{
             this.mpis[mpiId].group.visible = false;
             var c2w = this.matrices['c2ws'][mpiId].clone();
             this.mpis[mpiId].group.applyMatrix4(c2w);
-            this.scene.add(this.mpis[mpiId].group);
+            this.scenes[0].add(this.mpis[mpiId].group);
             if(mpiId == 0){
                 this.mpis[mpiId].group.visible = true;
             }    
@@ -186,24 +202,7 @@ class NeXviewerApp{
         this.write_camera_location();
         var bary = this.bary();     
         localStorage.setItem('bary_address',JSON.stringify(bary['ids']));
-        this.renderer.autoClear = true;
-        for(var b = 0; b < 3; b++){
-            var id = bary['ids'][b];
-            var weight = bary['weights'][b];
-            this.mpis[b].group.visible = true;
-            if(this.mpis_ids[b] != id) {
-                this.mpis[b].group.applyMatrix4(this.matrices['w2cs'][this.mpis_ids[b]]);
-                this.mpis[b].group.applyMatrix4(this.matrices['c2ws'][id]);
-                for(var planeId = 0; planeId < this.cfg.planes.length; planeId++){
-                    this.mpis[b].planes[planeId].material = this.materials[id][planeId];
-                }
-                this.mpis_ids[b]= id;            
-            }
-            this.opacityPass.uniforms.opacity.value = weight;
-            this.renderer.autoClear = false;
-            this.composer.render();
-            this.mpis[b].group.visible = false;
-        }
+        //TODO: write how composer render
         ///////
         this.stats.end();
         requestAnimationFrame(this.render.bind(this));
@@ -211,6 +210,10 @@ class NeXviewerApp{
     cleanupPrecompile(){
         for(var i = 0; i < 3; i++){
             this.mpis[i].group.visible = false;
+            if(i > 1){
+                this.mpis[i].group.removeFromParent();
+                this.scenes[i].add(this.mpis[i]);
+            }
         }
         for(var i = 3; i < 30; i++){
             this.mpis[i].group.clear();
@@ -218,7 +221,9 @@ class NeXviewerApp{
         }
     }
     render(){
-        this.renderer.compile(this.scene, this.camera);
+        for(var i = 0; i < 3; i++){
+            this.renderer.compile(this.scenes[i], this.camera);
+        }
         this.cleanupPrecompile();
         this.animate();
     }
