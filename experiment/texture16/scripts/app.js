@@ -47,8 +47,9 @@ class NeXviewerApp{
         for(var i = 0; i < 3; i++){
             this.renderPasses.push();
             this.renderPasses(this.scenes[i], this.camera);
-            this.composers.push(THREE.EffectComposer(this.renderer););
-            this.composer.addPass(this.renderPasses[i]);
+            this.composers.push(THREE.EffectComposer(this.renderer));
+            this.composers[i].renderToScreen = false;
+            this.composers[i].addPass(this.renderPasses[i]);
         }
         this.finalComposer = new THREE.EffectComposer(this.renderer);
         this.blendPass = new ShaderPass(new THREE.ShaderMaterial({
@@ -196,13 +197,16 @@ class NeXviewerApp{
     }
     animate(){
         this.stats.begin();
-        //this.renderer.render(this.scene, this.camera );
         this.controls.update();
         /////       
         this.write_camera_location();
         var bary = this.bary();     
         localStorage.setItem('bary_address',JSON.stringify(bary['ids']));
-        //TODO: write how composer render
+        for(var i = 0; i < 3; i++){
+            //TODO: handle how to swap plane (applyMatrix4)
+            this.composers[i].render();
+        }
+        this.finalComposer.render();
         ///////
         this.stats.end();
         requestAnimationFrame(this.render.bind(this));
@@ -271,13 +275,6 @@ class NeXviewerApp{
             'z': this.camera.position.z
         }));
     }
-    write_selected_mpi(){
-        localStorage.setItem('camera_location',JSON.stringify({
-            'x': this.camera.position.x, 
-            'y': this.camera.position.y,
-            'z': this.camera.position.z
-        }));
-    }
     color2id(color){
         return parseInt(Math.round( parseFloat(color) / 255.0 * (this.cfg.c2ws.length - 1) ))
     }
@@ -285,7 +282,7 @@ class NeXviewerApp{
         return parseFloat(color) / 255.0;
     }
     sterographicProjection(vec){
-        var divder = (1.0 - vec.z)  + 1e-7
+        var divder = (1.0 - vec.z)  + 1e-7;
         return  new THREE.Vector2(
             vec.x / divder,
             vec.y / divder
