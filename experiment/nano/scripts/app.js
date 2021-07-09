@@ -1,5 +1,6 @@
 class NeXviewerApp{
-    constructor(cfg, p_bary_ids, p_bary_weights, p_bary_height, p_bary_width, callback){
+    constructor(path, cfg, p_bary_ids, p_bary_weights, p_bary_height, p_bary_width, callback){
+        this.path = path;
         this.cfg = cfg
         this.bary_ids = p_bary_ids;
         this.bary_weights = p_bary_weights;
@@ -31,7 +32,9 @@ class NeXviewerApp{
         this.camera.up.set( 0, 0, 1 );
         // WebGL renderer config
         this.renderer = new THREE.WebGLRenderer({ alpha: true, preserveDrawingBuffer: true}); 
+        this.renderer.context.canvas.addEventListener("webglcontextlost", this.onContextLost, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
+        this.controls_update = true;
         this.renderer.setSize( targetWidth, targetHeight);
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         // inital scene
@@ -67,7 +70,8 @@ class NeXviewerApp{
             defines: {}
         }));
         this.blendComposer.addPass(this.blendPass);
-        document.body.appendChild(this.renderer.domElement );       
+        //document.body.appendChild(this.renderer.domElement );       
+        document.getElementById('threejs-wrapper').appendChild(this.renderer.domElement );
     }
     initScene(){       
         // prepare scene     
@@ -105,7 +109,7 @@ class NeXviewerApp{
                         alpha_ch: {value: i % 4},                   
                         mpi_a: { type: "t", value: this.textures[mpiId]['a'][Math.floor(i/4)]},
                         mpi_b0_p: { type: "t", value: this.textures['b0_p']},
-                        mpi_b0_p: { type: "t", value: this.textures['b1_p']},
+                        mpi_b1_p: { type: "t", value: this.textures['b1_p']},
                         mpi_b0_n: { type: "t", value: this.textures['b0_n']},
                         mpi_b1_n: { type: "t", value: this.textures['b1_n']},
                         mpi_c: { type: "t", value: this.textures[mpiId]['c'][layer_id]},
@@ -134,41 +138,43 @@ class NeXviewerApp{
     }
     loadTexture(callback){
         // mpi_b + mpi_a + coeff + mpi_c
+        document.getElementById('progress-texture-wrapper').style.display = 'block';
         var total_texture = (4*1) + (48 * 30) + (6 * 16 * 30) + (1 * 16* 30); 
         var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
         var self = this;
         var textureCallback = function(texture){
             loaded_texture++;
-            console.log('texture loaded... '+ loaded_texture +' / ' + total_texture);
+            document.getElementById('progress-texture-val').value = (loaded_texture / total_texture) * 100.0;
+            document.getElementById('progress-texture-text').innerText = ''+loaded_texture+' / '+total_texture;
             self.renderer.initTexture(texture);
             if(loaded_texture >= total_texture){
-                console.log('load finished')
+                document.getElementById('progress-texture-wrapper').style.display = 'none';
                 callback();
             }
         }
         this.textures = {
-            "b0_p": texloader.load("../../data/lego_nano/mpi_b0_p.png", textureCallback),
-            "b1_p": texloader.load("../../data/lego_nano/mpi_b1_p.png", textureCallback),
-            "b0_n": texloader.load("../../data/lego_nano/mpi_b0_n.png", textureCallback),
-            "b1_n": texloader.load("../../data/lego_nano/mpi_b1_n.png", textureCallback),
+            "b0_p": texloader.load(this.path+"/mpi_b0_p.png", textureCallback),
+            "b1_p": texloader.load(this.path+"/mpi_b1_p.png", textureCallback),
+            "b0_n": texloader.load(this.path+"/mpi_b0_n.png", textureCallback),
+            "b1_n": texloader.load(this.path+"/mpi_b1_n.png", textureCallback),
         }
         for(var i = 0; i < this.cfg.c2ws.length; i++){
             var id = String(i).padStart(2, '0');
             this.textures[i] = {'a':[],'k':[],'c':[]};
             for(var j = 0; j < Math.floor(this.cfg.planes.length / 4); j++){
                 var layer_id = String(j).padStart(2, '0')
-                this.textures[i]['a'].push(texloader.load( "../../data/lego_nano/mpi"+id+"_a"+layer_id+".png", textureCallback));
+                this.textures[i]['a'].push(texloader.load(this.path+"/mpi"+id+"_a"+layer_id+".png", textureCallback));
             }
             for(var j = 0; j < this.cfg.num_layers; j++){
                 var layer_id = String(j).padStart(2, '0')
-                this.textures[i]['c'].push(texloader.load( "../../data/lego_nano/mpi"+id+"_c_l"+layer_id+".png", textureCallback));
+                this.textures[i]['c'].push(texloader.load(this.path+"/mpi"+id+"_c_l"+layer_id+".png", textureCallback));
             }
             for(var j = 0; j < this.cfg.num_layers; j++){
                 var layer_id = String(j).padStart(2, '0')
                 this.textures[i]['k'].push([])
                 for(var k = 1; k <= 6; k++){
-                    this.textures[i]['k'][j].push(texloader.load( "../../data/lego_nano/mpi"+id+"_k"+k+"_l"+layer_id+".png", textureCallback));
+                    this.textures[i]['k'][j].push(texloader.load(this.path+"/mpi"+id+"_k"+k+"_l"+layer_id+".png", textureCallback));
                 }
             }
         } 
@@ -194,7 +200,8 @@ class NeXviewerApp{
     }
     animate(){
         this.stats.begin();
-        this.controls.update();
+        requestAnimationFrame(this.render.bind(this));
+        if(this.controls_update) this.controls.update();
         /////       
         var bary = this.bary();     
         this.write_camera_location(bary['ids']);
@@ -219,7 +226,6 @@ class NeXviewerApp{
         this.blendComposer.render();
         ///////
         this.stats.end();
-        requestAnimationFrame(this.render.bind(this));
     }
     cleanupPrecompile(){
         for(var i = 0; i < 3; i++){
@@ -287,6 +293,11 @@ class NeXviewerApp{
             'z': this.camera.position.z
         }));
     }
+    onContextLost(event) {
+        event.preventDefault();
+        document.getElementById("danger-modal").classList.add("is-active");
+        document.getElementById("danger-model-text").innerHTML="<b>WEBGL_CONTEXT_LOSS:</b> Your machine doesn't have enough memory to render this scene";
+    }
     color2id(color){
         return parseInt(Math.round( parseFloat(color) / 255.0 * (this.cfg.c2ws.length - 1) ))
     }
@@ -316,6 +327,12 @@ function load_image_pixel(url, callback){
     }
 }
 $(document).ready(function() {
+    const urlSearchParams = new URLSearchParams(window.location.search);
+    const params = Object.fromEntries(urlSearchParams.entries());
+    if (typeof params.scene !== 'undefined'){
+        params.scene == '../../data/lego_nano/';
+    }
+
     var need_return = 3;
     var count_return = 0;
     var configs = null, bary_ids = null, bary_weight = null, bary_height = 0, bary_width = 0;
@@ -323,7 +340,7 @@ $(document).ready(function() {
         count_return++;
         if(count_return >= need_return){
             window.app = new NeXviewerApp(
-                configs, bary_ids, bary_weight, bary_height, bary_width,
+                params.scene, configs, bary_ids, bary_weight, bary_height, bary_width,
                 function(nexapp){
                     console.log('ready for nex app');
                     nexapp.render();
@@ -331,19 +348,22 @@ $(document).ready(function() {
             );
         }
     };
-    load_image_pixel('../../data/lego_nano/bary_indices.png', function(p_inds, height, width){
+    load_image_pixel(params.scene+'/bary_indices.png', function(p_inds, height, width){
         bary_ids = p_inds;
         bary_height = height;
         bary_width = width;
         waiting_return();
     });
-    load_image_pixel('../../data/lego_nano/bary_weight.png', function(p_weight, height, width){
+    load_image_pixel(params.scene+'/bary_weight.png', function(p_weight, height, width){
         bary_weight = p_weight;
         waiting_return();
     });    
-    $.getJSON("../../data/lego_nano/config.json", function(cfg) {
+    $.getJSON(params.scene+"/config.json").done(function(cfg){
         configs = cfg;
         waiting_return();
+    }).fail(function(err){
+        document.getElementById("danger-modal").classList.add("is-active");
+        document.getElementById("danger-model-text").innerHTML="<b>404:</b> Scene \""+params.scene+"\" doesn't not found";
     });
     
 });

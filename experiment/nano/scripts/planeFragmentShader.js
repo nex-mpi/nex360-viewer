@@ -90,24 +90,30 @@ vec3 getIllumination()
     //get basis
     vec4 qb0, qb1;
     vec3 viewing = getViewingAngle();
-    vec2 basisUvStero = stereographicProjection(viewing);
+    
+    vec3 queryViewing = viewing;
+    if(viewing.z > 0.0){
+        // z should be alway negative when query to prevent  inf in sterographic
+        queryViewing.z = queryViewing.z * -1.0;
+    }
+    vec2 basisUvStero = stereographicProjection(queryViewing);
     vec2 basisUv;
-    basisUv.y = basisUvStero.x;
-    basisUv.x = basisUvStero.y;
+    basisUv = basisUvStero;
     basisUv = (basisUv + 1.0) / 2.0; //rescale to [0,1];
     basisUv = clamp(basisUv, 0.0, 1.0); //sterographic is unbound.
     basisUv.y = basisUv.y * -1.0; //uv_map y-axis is up, but in mpi_b Y is down
-    if(viewing.z >= 0.0){
-        qb0 = texture2D(mpi_b0_p, basisUv);
-        qb1 = texture2D(mpi_b1_p, basisUv);
-    }else{
+    if(viewing.z <= 0.0){
         qb0 = texture2D(mpi_b0_n, basisUv);
-        qb1 = texture2D(mpi_b1_n, basisUv);
+        qb1 = texture2D(mpi_b1_n, basisUv);        
+    }else{
+        qb0 = texture2D(mpi_b1_p, basisUv);
+        qb1 = texture2D(mpi_b1_p, basisUv);
     }
 
     // rescale basis to -1,1
     qb0 = (qb0 * 2.0) - 1.0;
     qb1 = (qb1 * 2.0) - 1.0;
+    
 
     // make 2 query into 8 basis
     float b1,b2,b3,b4,b5,b6,b7,b8;
@@ -119,6 +125,7 @@ vec3 getIllumination()
     b6 = qb1.g;
     b7 = qb1.b;
     b8 = qb1.a;
+    
 
     //combine coefficent and basisto get illumination
     vec3 illumination = vec3(0.0, 0.0, 0.0);
