@@ -150,6 +150,7 @@ class NeXviewerApp{
             self.renderer.initTexture(texture);
             if(loaded_texture >= total_texture){
                 document.getElementById('progress-texture-wrapper').style.display = 'none';
+                self.showControlBar()
                 callback();
             }
         }
@@ -200,32 +201,45 @@ class NeXviewerApp{
     }
     animate(){
         this.stats.begin();
-        requestAnimationFrame(this.render.bind(this));
+        requestAnimationFrame(this.animate.bind(this));
         if(this.controls_update) this.controls.update();
-        /////       
-        var bary = this.bary();     
+        this.composeBary();
+        this.stats.end();
+    }
+    rotateMpi(b, id){
+        if(this.mpis_ids[b] != id) {
+            this.mpis[b].group.applyMatrix4(this.matrices['w2cs'][this.mpis_ids[b]]);
+            this.mpis[b].group.applyMatrix4(this.matrices['c2ws'][id]);
+            for(var planeId = 0; planeId < this.cfg.planes.length; planeId++){
+                this.mpis[b].planes[planeId].material = this.materials[id][planeId];
+            }
+            this.mpis_ids[b]= id;            
+        }
+    }
+    composeSingle(){
+        var bary = this.bary();
+        var id = 0;
+        if(bary.weights[1] >= bary.weights[0] && bary.weights[1] >= bary.weights[2]) id = 1;
+        if(bary.weights[2] >= bary.weights[0] && bary.weights[2] >= bary.weights[1]) id = 2;
+        id = bary['ids'][id];
+        this.write_camera_location([id]);
+        this.rotateMpi(0, id);
+        this.composers[0].render();  
+    }
+    composeBary(){       
+        var bary = this.bary();  
         this.write_camera_location(bary['ids']);
         for(var b = 0; b < 3; b++){
-            //TODO: handle how to swap plane (applyMatrix4)
-            var id = bary['ids'][b];
-            if(this.mpis_ids[b] != id) {
-                this.mpis[b].group.applyMatrix4(this.matrices['w2cs'][this.mpis_ids[b]]);
-                this.mpis[b].group.applyMatrix4(this.matrices['c2ws'][id]);
-                for(var planeId = 0; planeId < this.cfg.planes.length; planeId++){
-                    this.mpis[b].planes[planeId].material = this.materials[id][planeId];
-                }
-                this.mpis_ids[b]= id;            
-            }
-            // render each MPI
-            this.composers[b].render();
-        }
-        //render the weight 3-combine mpi
-        this.blendPass.uniforms.weight1.value = bary['weights'][0];
-        this.blendPass.uniforms.weight2.value = bary['weights'][1];
-        this.blendPass.uniforms.weight3.value = bary['weights'][2];
-        this.blendComposer.render();
-        ///////
-        this.stats.end();
+             var id = bary['ids'][b];
+             this.rotateMpi(b, id);
+             // render each MPI
+             this.composers[b].render();
+         }
+         //render the weight 3-combine mpi
+         this.blendPass.uniforms.weight1.value = bary['weights'][0];
+         this.blendPass.uniforms.weight2.value = bary['weights'][1];
+         this.blendPass.uniforms.weight3.value = bary['weights'][2];
+         this.blendComposer.render();
     }
     cleanupPrecompile(){
         for(var i = 0; i < 3; i++){
@@ -238,14 +252,13 @@ class NeXviewerApp{
         for(var i = 3; i < 30; i++){
             this.mpis[i].group.clear();
             this.mpis[i].group.removeFromParent();
-        }
+        }        
     }
-    render(){
-        /*
+    render(){  
         for(var i = 0; i < 3; i++){
             this.renderer.compile(this.scenes[i], this.camera);
-        }*/
-        this.cleanupPrecompile();
+        }
+        this.cleanupPrecompile();      
         this.animate();
     }
     bary(){
@@ -261,7 +274,6 @@ class NeXviewerApp{
             return this.bary_data;
         }
         this.anchor = anchor;
-        //this.write_bary_anchor(anchor);
         var ids = [], weights = [];
         for(var i = 0; i < 3; i++){
             ids.push(this.color2id(this.bary_ids[anchor+i]));
@@ -304,12 +316,19 @@ class NeXviewerApp{
     color2float(color){
         return parseFloat(color) / 255.0;
     }
+    mostBaryWeight(ids){
+        
+    }
     sterographicProjection(vec){
         var divder = (1.0 - vec.z)  + 1e-7;
         return  new THREE.Vector2(
             vec.x / divder,
             vec.y / divder
         );
+    }
+    showControlBar(){
+        console.log('show control bar')
+        $('#control-bar').show();
     }
 }
 /////////////////////////////////////////////////////////
@@ -342,7 +361,7 @@ $(document).ready(function() {
             window.app = new NeXviewerApp(
                 params.scene, configs, bary_ids, bary_weight, bary_height, bary_width,
                 function(nexapp){
-                    console.log('ready for nex app');
+                    console.log('ready for nex app');                    
                     nexapp.render();
                 }
             );

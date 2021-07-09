@@ -4,6 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="../../styles/bulma.min.css">
+        <link rel="stylesheet" href="../../styles/bulma.switch.min.css">
         <link rel="stylesheet" href="../../styles/app.css">
         <title>NeX360 Viewer - nano</title>
     </head>
@@ -25,6 +26,22 @@
             </div>
             <div id="threejs-wrapper">
                 <!-- Threejs canvas here-->
+            </div>
+            <div id="control-bar" style="display: none;">                
+                <div class="select" id="sel-control-type">
+                    <select>
+                        <option value="0">🖱️ manual control</option>
+                        <option value="1">🚜 Nerf's test path </option>
+                    </select>
+                </div>
+                <div class="select" id="sel-plane-combine">
+                    <select>
+                        <option value="0">߷ Barycentric</option>
+                        <option value="1">1️⃣ Closet MPI </option>
+                    </select>
+                </div>
+                <a class="button" target="_blank" href="../../world.html"> 🌐 world visualization</a>
+                <a class="button" target="_blank" href="#" id="btn-predict"> 📷 Predict test path </a>
             </div>
         </div>
         <script src="../../scripts/jquery-3.6.0.min.js"></script>
