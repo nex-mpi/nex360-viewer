@@ -167,7 +167,6 @@ class NeXviewerApp{
             self.renderer.initTexture(texture);
             if(loaded_texture >= total_texture){
                 document.getElementById('progress-texture-wrapper').style.display = 'none';
-                self.showControlBar()
                 callback();
             }
         }
@@ -279,7 +278,10 @@ class NeXviewerApp{
          this.blendPass.uniforms.weight3.value = bary['weights'][2];
          this.blendComposer.render();
     }
-    cleanupPrecompile(){
+    precompile(){
+        for(var i = 0; i < 3; i++){
+            this.renderer.compile(this.scenes[i], this.camera);
+        }
         for(var i = 0; i < 3; i++){
             if(i > 0){
                 this.mpis[i].group.removeFromParent();
@@ -292,10 +294,7 @@ class NeXviewerApp{
         }        
     }
     render(){  
-        for(var i = 0; i < 3; i++){
-            this.renderer.compile(this.scenes[i], this.camera);
-        }
-        this.cleanupPrecompile();      
+        this.precompile();      
         this.animate();
     }
     bary(){
@@ -360,12 +359,9 @@ class NeXviewerApp{
             vec.y / divder
         );
     }
-    showControlBar(){
-        console.log('show control bar')
-        $('#control-bar').show();
-    }
     regisControl(){
         var self = this;
+        $('#control-bar').show();
         $('#sel-plane-combine').change(function(e){
             self.cfg.compose_mode = this.value;
             if(this.value == 'closet'){
@@ -406,6 +402,16 @@ class NeXviewerApp{
         this.resetCameraPositionRotation();
         this.camera.applyMatrix4(this.matrices['nerf_c2ws'][frame_id]);
     }
+    vr(){
+        var self = this;
+        this.precompile();
+        this.renderer.xr.enabled = true;
+        document.body.appendChild(THREE.VRButton.createButton(this.renderer) );
+        console.log('registered button');
+        this.renderer.setAnimationLoop(function(){
+            self.composeBary();
+        });
+    }
 }
 /////////////////////////////////////////////////////////
 function load_image_pixel(url, callback){
@@ -441,9 +447,14 @@ $(document).ready(function() {
             window.app = new NeXviewerApp(
                 params.scene, configs, bary_ids, bary_weight, bary_height, bary_width,
                 function(nexapp){
-                    console.log('ready for nex app');  
-                    nexapp.regisControl();                  
-                    nexapp.render();
+                    if (typeof params.vr !== 'undefined'){
+                        console.log('VR rendering');
+                        nexapp.vr();
+                    }else{
+                        console.log('PC rendering');
+                        nexapp.regisControl();                  
+                        nexapp.render();                            
+                    }
                 }
             );
         }
