@@ -109,6 +109,7 @@ class NeXviewerApp{
         this.mpis_ids = [0,1,2];
         this.prev_id = 0;
         var fov_tan = Math.tan(this.cfg.fov_radian / 2.0);
+
         for(var mpiId = 0; mpiId < 30; mpiId++) //this.cfg.c2ws.length
         {
             this.mpis[mpiId] = {
@@ -121,10 +122,10 @@ class NeXviewerApp{
                 var plane_width = fov_tan * depth * 2.0;
                 var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
                 var layer_id = Math.floor(i / this.cfg.num_sublayers)
+                
                 this.materials[mpiId].push(new THREE.ShaderMaterial({
                     transparent: true,
-                    side: THREE.DoubleSide,
-                    uniforms: {    // custom uniforms (your textures)     
+                    uniforms: {   
                         alpha_ch: {value: i % 4},                   
                         mpi_a: { type: "t", value: this.textures[mpiId]['a'][Math.floor(i/4)]},
                         mpi_b0_p: { type: "t", value: this.textures['b0_p']},
@@ -141,7 +142,8 @@ class NeXviewerApp{
                     },
                     vertexShader: planeVertexShader,
                     fragmentShader: planeFragmentShader,
-                }));                
+                }));
+
                 this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, this.materials[mpiId][i])); 
                 this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
                 this.mpis[mpiId].group.add(this.mpis[mpiId].planes[i]);
