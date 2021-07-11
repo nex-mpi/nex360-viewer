@@ -23,6 +23,21 @@ class NeXviewerApp{
         this.stats = new Stats();
         this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
         document.body.appendChild(this.stats.dom);
+
+        //init configuration
+        if (typeof this.cfg.compose_mode === 'undefined'){
+            this.cfg.compose_mode = 'bary';
+        }
+        if (typeof this.cfg.controls_type === 'undefined'){
+            this.cfg.controls_type = "manual";
+        }
+        if (typeof this.cfg.camera_position === 'undefined'){
+            this.cfg.camera_position = {
+                "x": 0.8205487132072449,
+                "y": 3.3249945640563965,
+                "z": 2.066666603088379
+            };
+        }
  
         // initial global thing
         var targetHeight = 800; // window.innerHeight
@@ -34,7 +49,6 @@ class NeXviewerApp{
         this.renderer = new THREE.WebGLRenderer({ alpha: true, preserveDrawingBuffer: true}); 
         this.renderer.context.canvas.addEventListener("webglcontextlost", this.onContextLost, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
-        this.controls_update = true;
         this.renderer.setSize( targetWidth, targetHeight);
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         // inital scene
@@ -82,9 +96,9 @@ class NeXviewerApp{
         this.scene.add(cube);
         */
          // TODO: support proper position
-        this.camera.position.x = 0.8205487132072449;
-        this.camera.position.y =  3.3249945640563965;
-        this.camera.position.z = 2.066666603088379;
+        this.camera.position.x = this.cfg.camera_position.x;
+        this.camera.position.y =  this.cfg.camera_position.y;
+        this.camera.position.z = this.cfg.camera_position.z;
         this.materials = {};
         this.mpis = {};
         this.mpis_ids = [0,1,2];
@@ -183,7 +197,9 @@ class NeXviewerApp{
     initMatrices(){
         this.matrices = {
             'c2ws': [],
-            'w2cs': []
+            'w2cs': [],
+            'nerf_c2ws': [],
+            'nerf_w2cs': [],
         }
         for(var i = 0; i < this.cfg.c2ws.length; i++){
             var c2w_arr = this.cfg.c2ws[i];
@@ -198,12 +214,31 @@ class NeXviewerApp{
             this.matrices['c2ws'].push(c2w);
             this.matrices['w2cs'].push(c2w.clone().invert());
         }
+        if(typeof this.cfg.nerf_path !== 'undefined'){
+            for(var i = 0; i < this.cfg.nerf_path.frames.length; i++){
+                var c2w_arr = this.cfg.nerf_path.frames[i].transform_matrix;
+                var c2w = new THREE.Matrix4();
+                c2w.set(
+                    c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
+                    c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
+                    c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
+                    c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
+                );
+                this.matrices['nerf_c2ws'].push(c2w);
+                this.matrices['nerf_w2cs'].push(c2w.clone().invert());
+            }
+        }
     }
     animate(){
         this.stats.begin();
         requestAnimationFrame(this.animate.bind(this));
-        if(this.controls_update) this.controls.update();
-        this.composeBary();
+        if(this.cfg.controls_type == "manual") this.controls.update();
+        if(this.cfg.controls_type == "nerf")  this.nextNerfCameraPose(); //this.updateNeRFCameraPose();
+        if(this.cfg.compose_mode == 'closet'){
+            this.composeSingle();
+        } else {
+            this.composeBary();
+        }
         this.stats.end();
     }
     rotateMpi(b, id){
@@ -316,9 +351,6 @@ class NeXviewerApp{
     color2float(color){
         return parseFloat(color) / 255.0;
     }
-    mostBaryWeight(ids){
-        
-    }
     sterographicProjection(vec){
         var divder = (1.0 - vec.z)  + 1e-7;
         return  new THREE.Vector2(
@@ -329,6 +361,48 @@ class NeXviewerApp{
     showControlBar(){
         console.log('show control bar')
         $('#control-bar').show();
+    }
+    regisControl(){
+        var self = this;
+        $('#sel-plane-combine').change(function(e){
+            self.cfg.compose_mode = this.value;
+            if(this.value == 'closet'){
+                self.composers[0].renderToScreen = true;
+            }else{
+                self.composers[0].renderToScreen = false;
+            }
+        });
+        $('#sel-control-type').change(function(e){
+            //reset camera rotation
+            self.resetCameraPositionRotation();
+            self.cfg.controls_type = this.value;        
+            if(this.value == 'nerf'){
+                //reset camera position              
+                self.camera.up.set( 0, 1, 0 );                
+            }else{
+                self.camera.up.set( 0, 0, 1 );
+                self.camera.position.x = self.cfg.camera_position.x;
+                self.camera.position.y = self.cfg.camera_position.y;
+                self.camera.position.z = self.cfg.camera_position.z; 
+            }
+        });
+    }
+    resetCameraPositionRotation(){
+        this.camera.position.x = 0;
+        this.camera.position.y = 0;
+        this.camera.position.z = 0; 
+        this.camera.rotation.x = 0;
+        this.camera.rotation.y = 0;
+        this.camera.rotation.z = 0;
+    }
+    nextNerfCameraPose(){
+        var frame_id = this.cfg.nerf_path.frame_id % this.matrices['nerf_c2ws'].length;
+        this.setNeRFCameraPose(frame_id);
+        this.cfg.nerf_path.frame_id++;
+    }
+    setNeRFCameraPose(frame_id){
+        this.resetCameraPositionRotation();
+        this.camera.applyMatrix4(this.matrices['nerf_c2ws'][frame_id]);
     }
 }
 /////////////////////////////////////////////////////////
@@ -348,20 +422,25 @@ function load_image_pixel(url, callback){
 $(document).ready(function() {
     const urlSearchParams = new URLSearchParams(window.location.search);
     const params = Object.fromEntries(urlSearchParams.entries());
-    if (typeof params.scene !== 'undefined'){
-        params.scene == '../../data/lego_nano/';
+    if (typeof params.scene === 'undefined'){
+        params.scene = '../../data/lego_nano_coeff400/';
     }
 
-    var need_return = 3;
+    var need_return = 4;
     var count_return = 0;
-    var configs = null, bary_ids = null, bary_weight = null, bary_height = 0, bary_width = 0;
+    var configs = null, bary_ids = null, bary_weight = null, transforms_test = null;
+    var bary_height = 0, bary_width = 0;
     var waiting_return = function(){
         count_return++;
         if(count_return >= need_return){
+            if(transforms_test !== null){
+                configs.nerf_path = transforms_test;
+            }
             window.app = new NeXviewerApp(
                 params.scene, configs, bary_ids, bary_weight, bary_height, bary_width,
                 function(nexapp){
-                    console.log('ready for nex app');                    
+                    console.log('ready for nex app');  
+                    nexapp.regisControl();                  
                     nexapp.render();
                 }
             );
@@ -384,5 +463,10 @@ $(document).ready(function() {
         document.getElementById("danger-modal").classList.add("is-active");
         document.getElementById("danger-model-text").innerHTML="<b>404:</b> Scene \""+params.scene+"\" doesn't not found";
     });
-    
+    $.getJSON(params.scene+"/transforms_test.json").done(function(transforms){
+        transforms.frame_id = 0;
+        transforms_test = transforms;
+    }).always(function(){
+        waiting_return();
+    })
 });

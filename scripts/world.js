@@ -93,7 +93,8 @@ class NeXworld{
 $(document).ready(function() {   
     $.getJSON("data/lego/config.json", function(cfg) {
         window.app = new NeXworld(cfg);
-        window.app.render();        
+        window.app.render();    
+        //onStorageChange();    
         function onStorageChange(){
             var camera_location = localStorage.getItem('camera_location');
             if(camera_location != null){
@@ -105,6 +106,11 @@ $(document).ready(function() {
             var bary_address = localStorage.getItem('bary_address');
             if(bary_address != null){
                 bary_address = JSON.parse(bary_address);
+                if(bary_address.length != this.app.previous_mpi.length){
+                    for(var i = 0; i < this.app.previous_mpi.length; i++){
+                        this.app.mpis[this.app.previous_mpi[i]].cone.material = this.app.coneMat;
+                    }
+                }
                 for(var i = 0; i < bary_address.length; i++){
                     this.app.mpis[this.app.previous_mpi[i]].cone.material = this.app.coneMat;
                     this.app.mpis[bary_address[i]].cone.material = this.app.coneTargetMat;
