@@ -46,7 +46,12 @@ class NeXviewerApp{
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
         this.camera.up.set( 0, 0, 1 );
         // WebGL renderer config
-        this.renderer = new THREE.WebGLRenderer({ alpha: true, preserveDrawingBuffer: true}); 
+        this.renderer = new THREE.WebGLRenderer({
+            alpha: true,
+            stencil: false,
+            depth: false,
+            powerPreference: "high-performance"
+        }); 
         this.renderer.context.canvas.addEventListener("webglcontextlost", this.onContextLost, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         this.renderer.setSize( targetWidth, targetHeight);
@@ -141,13 +146,9 @@ class NeXviewerApp{
                 this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
                 this.mpis[mpiId].group.add(this.mpis[mpiId].planes[i]);
             }
-            this.mpis[mpiId].group.visible = true;
             var c2w = this.matrices['c2ws'][mpiId].clone();
             this.mpis[mpiId].group.applyMatrix4(c2w);
             this.scenes[0].add(this.mpis[mpiId].group);
-            if(mpiId == 0){
-                this.mpis[mpiId].group.visible = true;
-            }    
         }
     }
     loadTexture(callback){
@@ -278,7 +279,6 @@ class NeXviewerApp{
     }
     cleanupPrecompile(){
         for(var i = 0; i < 3; i++){
-            this.mpis[i].group.visible = true;
             if(i > 0){
                 this.mpis[i].group.removeFromParent();
                 this.scenes[i].add(this.mpis[i].group);
