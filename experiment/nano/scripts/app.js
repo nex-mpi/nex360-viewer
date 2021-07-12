@@ -386,12 +386,10 @@ class NeXviewerApp{
             self.cfg.nerf_path.frame_id = 0;
             self.capturer.start();
             self.predictFrame();
-            console.log('request predict frame');
         });
     }
     predictFrame(){
         this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
-        console.log('predict frame...');
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
             return this.predictSave();
