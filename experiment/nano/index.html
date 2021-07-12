@@ -41,7 +41,15 @@
                     </select>
                 </div>
                 <a class="button" target="_blank" href="../../world.html"> 🌐 world visualization</a>
-                <a class="button" target="_blank" href="#" id="btn-predict"> 📷 Predict test path </a>
+                <a class="button" href="#" id="btn-predict"> 📷 Predict test path </a>
+            </div>
+            <div id="rendering-status-warpper" class="notification is-info is-light"  style="display: none;">
+                <div id="rendering-state-predicting" style="display: none;">
+                    <b>Predicting...</b> <span id="rendering-count"></span> / <span id="rendering-total"></span>
+                </div>
+                <div id="rendering-state-output"  style="display: none;">
+                    <b>Saving...</b>
+                </div>
             </div>
         </div>
         <script src="../../scripts/jquery-3.6.0.min.js"></script>
@@ -50,6 +58,7 @@
         <script src="../../scripts/EffectComposer.js"></script>
         <script src="../../scripts/stats.js"></script>
         <script src="../../scripts/VRButton.js"></script>
+        <script src="../../scripts/CCapture.all.min.js"></script>
         <script src="scripts/planeVertexShader.js"></script>
         <script src="scripts/planeFragmentShader.js"></script>
         <script src="scripts/blendVertexShader.js"></script>

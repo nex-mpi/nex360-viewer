@@ -90,6 +90,7 @@ class NeXviewerApp{
         }));
         this.blendComposer.addPass(this.blendPass);
         //document.body.appendChild(this.renderer.domElement );       
+        this.capturer = new CCapture( { name: "nex360-predict", format: "png" } );
         document.getElementById('threejs-wrapper').appendChild(this.renderer.domElement );
     }
     initScene(){       
@@ -100,10 +101,7 @@ class NeXviewerApp{
         var cube = new THREE.Mesh( originBox, originMat )
         this.scene.add(cube);
         */
-         // TODO: support proper position
-        this.camera.position.x = this.cfg.camera_position.x;
-        this.camera.position.y =  this.cfg.camera_position.y;
-        this.camera.position.z = this.cfg.camera_position.z;
+        this.resetCameraPose();
         this.materials = {};
         this.mpis = {};
         this.mpis_ids = [0,1,2];
@@ -233,14 +231,10 @@ class NeXviewerApp{
     }
     animate(){
         this.stats.begin();
-        requestAnimationFrame(this.animate.bind(this));
+        this.requestFrame = requestAnimationFrame(this.animate.bind(this));
         if(this.cfg.controls_type == "manual") this.controls.update();
         if(this.cfg.controls_type == "nerf")  this.nextNerfCameraPose(); //this.updateNeRFCameraPose();
-        if(this.cfg.compose_mode == 'closet'){
-            this.composeSingle();
-        } else {
-            this.composeBary();
-        }
+        this.composeFrame();
         this.stats.end();
     }
     rotateMpi(b, id){
@@ -251,6 +245,13 @@ class NeXviewerApp{
                 this.mpis[b].planes[planeId].material = this.materials[id][planeId];
             }
             this.mpis_ids[b]= id;            
+        }
+    }
+    composeFrame(){
+        if(this.cfg.compose_mode == 'closet'){
+            this.composeSingle();
+        } else {
+            this.composeBary();
         }
     }
     composeSingle(){
@@ -361,37 +362,72 @@ class NeXviewerApp{
     }
     regisControl(){
         var self = this;
-        $('#control-bar').show();
-        $('#sel-plane-combine').change(function(e){
+        $("#control-bar").show();
+        $("#sel-plane-combine").change(function(e){
             self.cfg.compose_mode = this.value;
-            if(this.value == 'closet'){
+            if(this.value == "closet"){
                 self.composers[0].renderToScreen = true;
             }else{
                 self.composers[0].renderToScreen = false;
             }
         });
-        $('#sel-control-type').change(function(e){
+        $("#sel-control-type").change(function(e){
             //reset camera rotation
-            self.resetCameraPositionRotation();
             self.cfg.controls_type = this.value;        
-            if(this.value == 'nerf'){
-                //reset camera position              
-                self.camera.up.set( 0, 1, 0 );                
-            }else{
-                self.camera.up.set( 0, 0, 1 );
-                self.camera.position.x = self.cfg.camera_position.x;
-                self.camera.position.y = self.cfg.camera_position.y;
-                self.camera.position.z = self.cfg.camera_position.z; 
-            }
+            self.resetCameraPose();
+        });
+        $("#btn-predict").click(function(e){
+            window.cancelAnimationFrame(self.requestFrame);
+            $("#control-bar").hide();
+            $("#rendering-status-warpper").show();
+            $("#rendering-count").text(1);
+            $("#rendering-total").text(self.matrices['nerf_c2ws'].length);
+            $("#rendering-state-predicting").show();
+            self.cfg.nerf_path.frame_id = 0;
+            self.capturer.start();
+            self.predictFrame();
+            console.log('request predict frame');
         });
     }
-    resetCameraPositionRotation(){
-        this.camera.position.x = 0;
-        this.camera.position.y = 0;
-        this.camera.position.z = 0; 
-        this.camera.rotation.x = 0;
-        this.camera.rotation.y = 0;
-        this.camera.rotation.z = 0;
+    predictFrame(){
+        this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
+        console.log('predict frame...');
+        $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
+        if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
+            return this.predictSave();
+        }
+        this.stats.begin();
+        this.nextNerfCameraPose();
+        this.composeFrame();
+        this.capturer.capture(this.renderer.domElement);
+        this.stats.end();
+    }
+    predictSave(){
+        this.cfg.nerf_path.frame_id = 0;
+        $("#rendering-state-predicting").hide();
+        $("#rendering-state-output").show();
+        this.capturer.stop();
+        this.capturer.save();
+        this.resetCameraPose();
+        $("#rendering-state-output").hide();
+        $("#rendering-status-warpper").hide();
+        $("#control-bar").show();
+        this.animate();
+    }
+    resetCameraPose(){
+        if(this.cfg.controls_type == "nerf"){
+            //reset camera position   
+            this.camera.position.set(0,0,0);
+            this.camera.rotation.set(0,0,0);           
+            this.camera.up.set( 0, 1, 0 );                
+        }else{
+            this.camera.up.set( 0, 0, 1 );
+            this.camera.position.set(
+                this.cfg.camera_position.x,
+                this.cfg.camera_position.y,
+                this.cfg.camera_position.z
+            ); 
+        }    
     }
     nextNerfCameraPose(){
         var frame_id = this.cfg.nerf_path.frame_id % this.matrices['nerf_c2ws'].length;
@@ -399,7 +435,8 @@ class NeXviewerApp{
         this.cfg.nerf_path.frame_id++;
     }
     setNeRFCameraPose(frame_id){
-        this.resetCameraPositionRotation();
+        this.camera.position.set(0,0,0);
+        this.camera.rotation.set(0,0,0);
         this.camera.applyMatrix4(this.matrices['nerf_c2ws'][frame_id]);
     }
     vr(){
