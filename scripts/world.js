@@ -94,7 +94,6 @@ $(document).ready(function() {
     $.getJSON("data/lego/config.json", function(cfg) {
         window.app = new NeXworld(cfg);
         window.app.render();    
-        //onStorageChange();    
         function onStorageChange(){
             var camera_location = localStorage.getItem('camera_location');
             if(camera_location != null){
@@ -118,6 +117,7 @@ $(document).ready(function() {
                 }
             }
         }
+        onStorageChange();  
         window.addEventListener("storage", onStorageChange, false);
     });
     
