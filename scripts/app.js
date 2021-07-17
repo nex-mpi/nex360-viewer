@@ -31,6 +31,9 @@ class NeXviewerApp{
         if (typeof this.cfg.controls_type === 'undefined'){
             this.cfg.controls_type = "manual";
         }
+        if (typeof this.cfg.is_predicting === 'undefined'){
+            this.cfg.is_predicting = false;
+        }
         if (typeof this.cfg.camera_position === 'undefined'){
             this.cfg.camera_position = {
                 "x": 0.8205487132072449,
