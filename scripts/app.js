@@ -54,11 +54,16 @@ class NeXviewerApp{
             stencil: false,
             depth: false,
             powerPreference: "high-performance"
-        }); 
+        });
+        if(!this.renderer.capabilities.isWebGL2){
+            document.getElementById("danger-modal").classList.add("is-active");
+            document.getElementById("danger-model-text").innerHTML="<b>WEBGL2:</b> This page require WebGL2 to be render.";    
+        }
         this.renderer.context.canvas.addEventListener("webglcontextlost", this.onContextLost, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         this.renderer.setSize( targetWidth, targetHeight);
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
+        //this.renderer.setClearColor( 0x000000, 1 ); //black bg for debuging
         // inital scene
         this.scenes = [];
         for(var i = 0; i < 3; i++){
@@ -153,13 +158,21 @@ class NeXviewerApp{
             this.mpis[mpiId].group.applyMatrix4(c2w);
             this.scenes[0].add(this.mpis[mpiId].group);
         }
-    }
+    }   
     loadTexture(callback){
         // mpi_b + mpi_a + coeff + mpi_c
         document.getElementById('progress-texture-wrapper').style.display = 'block';
-        var total_texture = (4*1) + (48 * 30) + (6 * 16 * 30) + (1 * 16* 30); 
+        var self = this;
+        var num_mpis = this.cfg.c2ws.length;
+        var files_per_mpi = 48 + (6 * 16) + 16;
+        var total_texture = (4*1) + (48 * num_mpis) + (6 * 16 * num_mpis) + (1 * 16* num_mpis); 
         var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
+        var alphaLoader = texloader;
+        if(this.cfg.texture_ext == 'npy'){
+            alphaLoader = new THREE.NumpyTextureLoader();
+        }
+        console.log('texture ext: '+this.cfg.texture_ext)
         var self = this;
         var textureCallback = function(texture){
             loaded_texture++;
@@ -177,25 +190,41 @@ class NeXviewerApp{
             "b0_n": texloader.load(this.path+"/mpi_b0_n.png", textureCallback),
             "b1_n": texloader.load(this.path+"/mpi_b1_n.png", textureCallback),
         }
-        for(var i = 0; i < this.cfg.c2ws.length; i++){
-            var id = String(i).padStart(2, '0');
-            this.textures[i] = {'a':[],'k':[],'c':[]};
-            for(var j = 0; j < Math.floor(this.cfg.planes.length / 4); j++){
-                var layer_id = String(j).padStart(2, '0')
-                this.textures[i]['a'].push(texloader.load(this.path+"/mpi"+id+"_a"+layer_id+".png", textureCallback));
-            }
-            for(var j = 0; j < this.cfg.num_layers; j++){
-                var layer_id = String(j).padStart(2, '0')
-                this.textures[i]['c'].push(texloader.load(this.path+"/mpi"+id+"_c_l"+layer_id+".png", textureCallback));
-            }
-            for(var j = 0; j < this.cfg.num_layers; j++){
-                var layer_id = String(j).padStart(2, '0')
-                this.textures[i]['k'].push([])
-                for(var k = 1; k <= 6; k++){
-                    this.textures[i]['k'][j].push(texloader.load(this.path+"/mpi"+id+"_k"+k+"_l"+layer_id+".png", textureCallback));
+        var count_mpi_load = 0;
+        var loaded_files_on_mpi = 0;
+        var loadTextureCallback = function(texture){
+            textureCallback(texture);
+            loaded_files_on_mpi++;
+            if(loaded_files_on_mpi>=files_per_mpi){
+                count_mpi_load++;
+                if(count_mpi_load < num_mpis){
+                    loaded_files_on_mpi = 0;
+                    window.setTimeout(function(){
+                        loadMpis(count_mpi_load);
+                    }, 10); // need to a delay to fool chrome to avoid insufficient load error.
                 }
             }
-        } 
+        }
+        var loadMpis = function(mpiId){
+            var id = String(mpiId).padStart(2, '0');
+            self.textures[mpiId] = {'a':[],'k':[],'c':[]};            
+            for(var j = 0; j < Math.floor(self.cfg.planes.length / 4); j++){
+                var layer_id = String(j).padStart(2, '0')
+                self.textures[mpiId]['a'].push(alphaLoader.load(self.path+"/mpi"+id+"_a"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
+            }                
+            for(var j = 0; j < self.cfg.num_layers; j++){
+                var layer_id = String(j).padStart(2, '0')
+                self.textures[mpiId]['c'].push(texloader.load(self.path+"/mpi"+id+"_c_l"+layer_id+".png", loadTextureCallback));
+            }                       
+            for(var j = 0; j < self.cfg.num_layers; j++){
+                var layer_id = String(j).padStart(2, '0')
+                self.textures[mpiId]['k'].push([])
+                for(var k = 1; k <= 6; k++){
+                    self.textures[mpiId]['k'][j].push(texloader.load(self.path+"/mpi"+id+"_k"+k+"_l"+layer_id+".png", loadTextureCallback));
+                }
+            }
+        }
+        loadMpis(0);         
     }
     initMatrices(){
         this.matrices = {

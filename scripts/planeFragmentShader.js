@@ -138,7 +138,7 @@ void main(void)
 {
     vec4 color = vec4(0.0,0.0,0.0,0.0);
     color.a = getAlpha();
-    // reduce texture call when no alpha to display
+    // reduce texture call when no alpha to display    
     if(color.a > 0.0){ 
         color.rgb = getBaseColor();
         color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
