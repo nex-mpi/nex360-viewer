@@ -2,6 +2,8 @@ var planeFragmentShader =  `
 precision highp float;
 
 #define EPSILON 0.000000001
+#define M_PI 3.1415926535897932384626433832795
+#define BASIS_WIDTH 800.0
 
 uniform sampler2D mpi_a;
 uniform sampler2D mpi_c;
@@ -11,10 +13,8 @@ uniform sampler2D mpi_k3;
 uniform sampler2D mpi_k4;
 uniform sampler2D mpi_k5;
 uniform sampler2D mpi_k6;
-uniform sampler2D mpi_b0_p;
-uniform sampler2D mpi_b1_p;
-uniform sampler2D mpi_b0_n;
-uniform sampler2D mpi_b1_n;
+uniform sampler2D mpi_b0;
+uniform sampler2D mpi_b1;
 
 uniform int alpha_ch;
 
@@ -24,10 +24,17 @@ varying vec3 vCoord;
 vec2 stereographicProjection(vec3 point)
 {
     vec2 ret;
-    ret.x = point.x / (1.0 - point.z + EPSILON);
-    ret.y = point.y / (1.0 - point.z + EPSILON);
+    ret.x = ret.x / (1.0 - point.z + EPSILON);
+    ret.y = ret.y / (1.0 - point.z + EPSILON);
     return ret;
 }   
+
+vec2 cartesian2spherical(vec3 data){
+    vec2 spherecoords;
+    spherecoords.x = atan(sqrt(data.x * data.x + data.y * data.y), data.z);
+    spherecoords.y = atan(data.y, data.z);
+    return spherecoords;
+}
 
 vec3 getViewingAngle()
 {
@@ -87,28 +94,20 @@ vec3 getIllumination()
     k8.g = q5.a;
     k8.b = q6.a;
 
-    //get basis
-    vec4 qb0, qb1;
-    vec3 viewing = getViewingAngle();
     
-    vec3 queryViewing = viewing;
-    if(viewing.z > 0.0){
-        // z should be alway negative when query to prevent  inf in sterographic
-        queryViewing.z = queryViewing.z * -1.0;
-    }
-    vec2 basisUvStero = stereographicProjection(queryViewing);
-    vec2 basisUv;
-    basisUv = basisUvStero;
-    basisUv = (basisUv + 1.0) / 2.0; //rescale to [0,1];
-    basisUv = clamp(basisUv, 0.0, 1.0); //sterographic is unbound.
-    // basisUv.y = basisUv.y * -1.0; //uv_map y-axis is up, but in mpi_b Y is down
-    if(viewing.z <= 0.0){
-        qb0 = texture2D(mpi_b0_n, basisUv);
-        qb1 = texture2D(mpi_b1_n, basisUv);        
-    }else{
-        qb0 = texture2D(mpi_b1_p, basisUv);
-        qb1 = texture2D(mpi_b1_p, basisUv);
-    }
+    vec3 basisViewing = getViewingAngle();
+    vec2 spherical_loc = cartesian2spherical(basisViewing);
+    spherical_loc = spherical_loc / M_PI;
+    spherical_loc = (spherical_loc + 1.0) / 2.0;
+    
+    //align corner
+    spherical_loc = spherical_loc * ((BASIS_WIDTH - 1.0) / (BASIS_WIDTH)) + (0.5 / BASIS_WIDTH);
+
+    //spherical_loc.y = spherical_loc.y * -1.0;
+    
+    //lookup basis
+    vec4 qb0 = texture2D(mpi_b0, spherical_loc);
+    vec4 qb1 = texture2D(mpi_b1, spherical_loc);
 
     // rescale basis to -1,1
     qb0 = (qb0 * 2.0) - 1.0;
@@ -139,10 +138,13 @@ void main(void)
     vec4 color = vec4(0.0,0.0,0.0,0.0);
     color.a = getAlpha();
     // reduce texture call when no alpha to display    
+    //color.rgb = getIllumination();
+    
     if(color.a > 0.0){ 
         color.rgb = getBaseColor();
         color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
     }
+    
     gl_FragColor= color;    
 }
 `;

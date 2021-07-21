@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="../../styles/bulma.min.css">
+        <link rel="stylesheet" href="../../styles/app.css">
+        <title>NeX360 Viewer - nano</title>
+    </head>
+    <body>
+        <div id='danger-modal' class="modal is-clipped">
+            <div class="modal-background"></div>
+            <div class="modal-content">
+                <div id='danger-model-text' class="notification is-danger">
+                </div>
+            </div>
+        </div>
+        <div class="view-container">
+            <div id='progress-texture-wrapper'>
+                <b>Loading textures:</b>
+                <div  class="progress-wrapper">
+                    <progress id='progress-texture-val' class="progress is-primary is-large" value="0" max="100">90%</progress>
+                    <p id='progress-texture-text' class="progress-value has-text-white"></p>    
+                </div>
+            </div>
+            <div id="threejs-wrapper">
+                <!-- Threejs canvas here-->
+            </div>
+            <div id="control-bar" style="display: none;">                
+                <div class="select" >
+                    <select id="sel-control-type">
+                        <option value="manual">🖱️ Manual control</option>
+                        <option value="nerf">🚜 Nerf's test path </option>
+                    </select>
+                </div>
+                <div class="select">
+                    <select id="sel-plane-combine">
+                        <option value="bary">߷ Barycentric</option>
+                        <option value="closet">1️⃣ Closet MPI </option>
+                    </select>
+                </div>
+                <a class="button" target="_blank" href="../../world.html"> 🌐 World visualization</a>
+                <a class="button" href="#" id="btn-predict"> 📷 Predict test path </a>
+            </div>
+            <div id="rendering-status-warpper" class="notification is-info is-light"  style="display: none;">
+                <div id="rendering-state-predicting" style="display: none;">
+                    <b>Predicting...</b> <span id="rendering-count"></span> / <span id="rendering-total"></span>
+                </div>
+                <div id="rendering-state-output"  style="display: none;">
+                    <b>Saving...</b>
+                </div>
+            </div>
+        </div>
+        <script src="../../scripts/thrid-party/jquery-3.6.0.min.js"></script>
+        <script src="../../scripts/thrid-party/three-r130.js"></script>
+        <script src="../../scripts/thrid-party/OrbitControls.js"></script>
+        <script src="../../scripts/thrid-party/EffectComposer.js"></script>
+        <script src="../../scripts/thrid-party/stats.js"></script>
+        <script src="../../scripts/thrid-party/VRButton.js"></script>
+        <script src="../../scripts/thrid-party/CCapture.all.min.js"></script>
+        <script src="../../scripts/thrid-party/npy.js"></script>
+        <script src="../../scripts/NumpyTextureLoader.js"></script>
+        <script src="../../scripts/planeVertexShader.js"></script>
+        <script src="scripts/planeFragmentShader.js"></script>
+        <script src="../../scripts/blendVertexShader.js"></script>
+        <script src="../../scripts/blendFragmentShader.js"></script>
+        <script src="../../scripts/utils.js"></script>
+        <script src="scripts/app.js"></script>
+    </body>
+</html>
