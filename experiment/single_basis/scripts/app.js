@@ -49,12 +49,16 @@ class NeXviewerApp{
         var ratio = targetWidth / targetHeight;
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
         this.camera.up.set( 0, 0, 1 );
+
         // WebGL renderer config
         this.renderer = new THREE.WebGLRenderer({
             alpha: true,
+            premultipliedAlpha: this.cfg.texture_ext != 'npy', //affact performance =X
+            precision: "highhp", //can be reduce for better performance
             stencil: false,
             depth: false,
-            powerPreference: "high-performance"
+            powerPreference: "high-performance",
+            
         });
         if(!this.renderer.capabilities.isWebGL2){
             document.getElementById("danger-modal").classList.add("is-active");
@@ -78,9 +82,20 @@ class NeXviewerApp{
         // https://github.com/mrdoob/three.js/blob/dev/examples/webgl_postprocessing_unreal_bloom_selective.html
         this.renderPasses = [];
         this.composers = [];
+        
         for(var i = 0; i < 3; i++){
+            var composerTarget = undefined;
+            if(this.cfg.texture_ext == 'npy'){
+				composerTarget = new THREE.WebGLRenderTarget(targetWidth, targetHeight, {
+					minFilter: THREE.LinearFilter,
+					magFilter: THREE.LinearFilter,
+					format: THREE.RGBAFormat,
+                    type: THREE.FloatType
+				});
+				composerTarget.texture.name = 'EffectComposer.rt1';
+            }
             this.renderPasses.push(new THREE.RenderPass(this.scenes[i], this.camera));
-            this.composers.push(new THREE.EffectComposer(this.renderer));
+            this.composers.push(new THREE.EffectComposer(this.renderer, composerTarget));
             this.composers[i].renderToScreen = false;
             this.composers[i].addPass(this.renderPasses[i]);
         }
@@ -185,6 +200,7 @@ class NeXviewerApp{
                 callback();
             }
         }
+        
         this.textures = {
             "b0": alphaLoader.load(this.path+"/mpi_b0."+self.cfg.texture_ext, textureCallback),
             "b1": alphaLoader.load(this.path+"/mpi_b1."+self.cfg.texture_ext, textureCallback),
@@ -213,13 +229,13 @@ class NeXviewerApp{
             }                
             for(var j = 0; j < self.cfg.num_layers; j++){
                 var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['c'].push(texloader.load(self.path+"/mpi"+id+"_c_l"+layer_id+".png", loadTextureCallback));
+                self.textures[mpiId]['c'].push(alphaLoader.load(self.path+"/mpi"+id+"_c_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
             }                       
             for(var j = 0; j < self.cfg.num_layers; j++){
                 var layer_id = String(j).padStart(2, '0')
                 self.textures[mpiId]['k'].push([])
                 for(var k = 1; k <= 6; k++){
-                    self.textures[mpiId]['k'][j].push(texloader.load(self.path+"/mpi"+id+"_k"+k+"_l"+layer_id+".png", loadTextureCallback));
+                    self.textures[mpiId]['k'][j].push(alphaLoader.load(self.path+"/mpi"+id+"_k"+k+"_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
                 }
             }
         }

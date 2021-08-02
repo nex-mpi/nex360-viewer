@@ -15,11 +15,11 @@ class NeXworld{
         this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         this.renderer.setSize( window.innerWidth, window.innerHeight );
-        this.renderer.setClearColor( 0x000000, 1 ); //change to white background
+        this.renderer.setClearColor( 0x3a3a3a, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
         // prepare scene  
         //add grid
-        var gridGround = new THREE.GridHelper( 10, 30,0x3f3f3f, 0x3f3f3f );
+        var gridGround = new THREE.GridHelper( 10, 30,0x777777, 0x777777 );
         this.scene.add(gridGround);
         gridGround.rotation.x = Math.PI / 2;
       

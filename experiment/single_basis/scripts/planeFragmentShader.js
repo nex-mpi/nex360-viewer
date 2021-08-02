@@ -1,5 +1,6 @@
 var planeFragmentShader =  `
 precision highp float;
+precision highp sampler2D;
 
 #define EPSILON 0.000000001
 #define BASIS_STEREO_RANGE 1.3628
