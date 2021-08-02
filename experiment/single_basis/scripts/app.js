@@ -99,7 +99,16 @@ class NeXviewerApp{
             this.composers[i].renderToScreen = false;
             this.composers[i].addPass(this.renderPasses[i]);
         }
-        this.blendComposer = new THREE.EffectComposer(this.renderer);
+        var blendComposerTarget = undefined;
+        if(this.cfg.texture_ext == 'npy'){
+            blendComposerTarget = new THREE.WebGLRenderTarget(targetWidth, targetHeight, {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                type: THREE.FloatType
+            });
+        }
+        this.blendComposer = new THREE.EffectComposer(this.renderer, blendComposerTarget);
         this.blendPass = new THREE.ShaderPass(new THREE.ShaderMaterial({
             transparent: true,
             uniforms: {
@@ -240,31 +249,6 @@ class NeXviewerApp{
             }
         }
         loadMpis(0);         
-        /*
-        var loadMpis = function(mpiId){
-            // load only 3 mpi 6,9,14
-            if(mpiId != 6 || mpiId != 9 || mpiId != 14){
-                mpiId = 6;
-            }
-            var id = String(mpiId).padStart(2, '0');
-            self.textures[mpiId] = {'a':[],'k':[],'c':[]};            
-            for(var j = 0; j < Math.floor(self.cfg.planes.length / 4); j++){
-                var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['a'].push(alphaLoader.load(self.path+"/mpi"+id+"_a"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
-            }                
-            for(var j = 0; j < self.cfg.num_layers; j++){
-                var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['c'].push(alphaLoader.load(self.path+"/mpi"+id+"_c_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
-            }                       
-            for(var j = 0; j < self.cfg.num_layers; j++){
-                var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['k'].push([])
-                for(var k = 1; k <= 6; k++){
-                    self.textures[mpiId]['k'][j].push(alphaLoader.load(self.path+"/mpi"+id+"_k"+k+"_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
-                }
-            }
-        }
-        */
     }
     initMatrices(){
         this.matrices = {
@@ -461,7 +445,7 @@ class NeXviewerApp{
         });
     }
     predictFrame(){
-        this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
+        //this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
             return this.predictSave();

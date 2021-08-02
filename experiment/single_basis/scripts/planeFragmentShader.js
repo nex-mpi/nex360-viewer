@@ -142,7 +142,7 @@ void main(void)
         color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
     }
     
-    
+
     gl_FragColor= color;    
 }
 `;
