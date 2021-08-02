@@ -127,7 +127,7 @@ vec3 getIllumination()
 
     //combine coefficent and basisto get illumination
     vec3 illumination = vec3(0.0, 0.0, 0.0);
-    illumination = (k1*b1) + (k2*b2) + (b3*b3) + (k4 * b4) + (k5 * b5) + (k6 * b6) + (k7 * b7) + (k8 * b8);
+    illumination = (k1*b1) + (k2*b2) + (k3*b3) + (k4 * b4) + (k5 * b5) + (k6 * b6) + (k7 * b7) + (k8 * b8);
     return illumination;
 }
 
@@ -137,9 +137,6 @@ void main(void)
     vec4 color = vec4(0.0,0.0,0.0,0.0);
     color.a = getAlpha();
     // reduce texture call when no alpha to display    
-    //color.rgb = getIllumination();
-    
-    
     if(color.a > 0.0){ 
         color.rgb = getBaseColor();
         color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
