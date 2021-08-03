@@ -35,6 +35,9 @@ class NeXviewerApp{
         if (typeof this.cfg.is_predicting === 'undefined'){
             this.cfg.is_predicting = false;
         }
+        if (typeof this.cfg.is_smaa === 'undefined'){
+            this.cfg.is_smaa = false;
+        }
         if (typeof this.cfg.camera_position === 'undefined'){
             this.cfg.camera_position = {
                 "x": 0.8205487132072449,
@@ -58,7 +61,7 @@ class NeXviewerApp{
             stencil: false,
             depth: false,
             powerPreference: "high-performance",
-            
+            antialias: true
         });
         if(!this.renderer.capabilities.isWebGL2){
             document.getElementById("danger-modal").classList.add("is-active");
@@ -69,6 +72,7 @@ class NeXviewerApp{
         this.controls.enableZoom = false;
         this.controls.enablePan = false;
         console.log('DISABLE ZOOM');
+        //this.renderer.setPixelRatio( window.devicePixelRatio ); //enable to render on HI-DPI screen
         this.renderer.setSize( targetWidth, targetHeight);
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
         //this.renderer.setClearColor( 0x000000, 1 ); //black bg for debuging
@@ -98,6 +102,9 @@ class NeXviewerApp{
             this.composers.push(new THREE.EffectComposer(this.renderer, composerTarget));
             this.composers[i].renderToScreen = false;
             this.composers[i].addPass(this.renderPasses[i]);
+            if(this.cfg.is_smaa){
+                this.composers[i].addPass(new THREE.SMAAPass(targetWidth, targetHeight));    
+            }
         }
         var blendComposerTarget = undefined;
         if(this.cfg.texture_ext == 'npy'){
@@ -125,6 +132,9 @@ class NeXviewerApp{
             defines: {}
         }));
         this.blendComposer.addPass(this.blendPass);
+        if(this.cfg.is_smaa){
+            this.blendComposer.addPass(new THREE.SMAAPass(targetWidth, targetHeight));
+        }
         //document.body.appendChild(this.renderer.domElement );       
         this.capturer = new CCapture( { name: "nex360-predict", format: "png" } );
         document.getElementById('threejs-wrapper').appendChild(this.renderer.domElement );
@@ -445,7 +455,7 @@ class NeXviewerApp{
         });
     }
     predictFrame(){
-        //this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
+        this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
             return this.predictSave();

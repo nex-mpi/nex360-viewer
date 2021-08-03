@@ -13,6 +13,9 @@ class NumpyTextureLoader{
             THREE.FloatType
         );
         texture.internalFormat = 'RGBA32F';
+        texture.generateMipmaps = false;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
         this.npy.load(filePath, function(data){
             texture.image.data = data.data;
             texture.image.height = data.shape[0];
