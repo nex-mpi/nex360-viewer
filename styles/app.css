@@ -37,7 +37,7 @@ html, body { margin: 0; }
     line-height: 1.5rem;
 }
 
-#progress-texture-wrapper{
+#progress-texture-wrapper, #progress-barycentric-wrapper{
     display: none;
     max-width: 300px;
     margin-top: 40px;

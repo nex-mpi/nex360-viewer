@@ -91,7 +91,7 @@ class NeXworld{
 }
 
 $(document).ready(function() {   
-    $.getJSON("data/lego/config.json", function(cfg) {
+    $.getJSON("data/config.json", function(cfg) {
         window.app = new NeXworld(cfg);
         window.app.render();    
         function onStorageChange(){
