@@ -69,9 +69,12 @@ class NeXviewerApp{
         }
         this.renderer.context.canvas.addEventListener("webglcontextlost", this.onContextLost, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
+        /*
         this.controls.enableZoom = false;
         this.controls.enablePan = false;
         console.log('DISABLE ZOOM');
+        */
+        console.log('enable zoom');
         //this.renderer.setPixelRatio( window.devicePixelRatio ); //enable to render on HI-DPI screen
         this.renderer.setSize( targetWidth, targetHeight);
         this.renderer.setClearColor( 0xffffff, 1 ); //change to white background
@@ -106,17 +109,16 @@ class NeXviewerApp{
                 this.composers[i].addPass(new THREE.SMAAPass(targetWidth, targetHeight));    
             }
         }
-        this.blendComposerTarget = undefined;
+        var blendComposerTarget = undefined;
         if(this.cfg.texture_ext == 'npy'){
-            this.blendComposerTarget = new THREE.WebGLRenderTarget(targetWidth, targetHeight, {
+            blendComposerTarget = new THREE.WebGLRenderTarget(targetWidth, targetHeight, {
                 minFilter: THREE.LinearFilter,
                 magFilter: THREE.LinearFilter,
                 format: THREE.RGBAFormat,
                 type: THREE.FloatType
             });
         }
-        this.blendComposer = new THREE.EffectComposer(this.renderer, this.blendComposerTarget);
-        this.blendComposer.renderToScreen = false;
+        this.blendComposer = new THREE.EffectComposer(this.renderer, blendComposerTarget);
         this.blendPass = new THREE.ShaderPass(new THREE.ShaderMaterial({
             transparent: true,
             uniforms: {
@@ -173,6 +175,7 @@ class NeXviewerApp{
                         alpha_ch: {value: i % 4},
                         plane_id: {value: i},                   
                         mpi_a: { type: "t", value: this.textures[mpiId]['a'][Math.floor(i/4)]},
+                        /*
                         mpi_b0: { type: "t", value: this.textures['b0']},
                         mpi_b1: { type: "t", value: this.textures['b1']},
                         mpi_c: { type: "t", value: this.textures[mpiId]['c'][layer_id]},
@@ -182,6 +185,7 @@ class NeXviewerApp{
                         mpi_k4: { type: "t", value: this.textures[mpiId]['k'][layer_id][3]},
                         mpi_k5: { type: "t", value: this.textures[mpiId]['k'][layer_id][4]},
                         mpi_k6: { type: "t", value: this.textures[mpiId]['k'][layer_id][5]},
+                        */
                     },
                     vertexShader: planeVertexShader,
                     fragmentShader: planeFragmentShader,
@@ -202,9 +206,11 @@ class NeXviewerApp{
         $('#progress-texture-wrapper').show();
         var self = this;
         var num_mpis = this.cfg.c2ws.length;
-        var files_per_mpi = 48 + (6 * 16) + 16;
+        //var files_per_mpi = 48 + (6 * 16) + 16;
+        var files_per_mpi = 48;
+        var total_texture = 48 * num_mpis + 2;
         // mpi_b + mpi_a + coeff + mpi_c
-        var total_texture = (2*1) + (48 * num_mpis) + (6 * 16 * num_mpis) + (1 * 16* num_mpis); 
+        //var total_texture = (2*1) + (48 * num_mpis) + (6 * 16 * num_mpis) + (1 * 16* num_mpis); 
         var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
         var alphaLoader = texloader;
@@ -249,7 +255,8 @@ class NeXviewerApp{
             for(var j = 0; j < Math.floor(self.cfg.planes.length / 4); j++){
                 var layer_id = String(j).padStart(2, '0')
                 self.textures[mpiId]['a'].push(alphaLoader.load(self.path+"/mpi"+id+"_a"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
-            }                
+            }
+            /*                
             for(var j = 0; j < self.cfg.num_layers; j++){
                 var layer_id = String(j).padStart(2, '0')
                 self.textures[mpiId]['c'].push(alphaLoader.load(self.path+"/mpi"+id+"_c_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
@@ -261,6 +268,7 @@ class NeXviewerApp{
                     self.textures[mpiId]['k'][j].push(alphaLoader.load(self.path+"/mpi"+id+"_k"+k+"_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
                 }
             }
+            */
         }
         loadMpis(0);         
     }
@@ -344,18 +352,42 @@ class NeXviewerApp{
             this.rotateMpi(b, id);
             // render each MPI
             this.composers[b].render();            
+         }       
+         for(var i = 0; i < 3; i++){
+            bary['weights'][i] = 0.0;
          }
+         var id = 0;
          /*
-         bary['weights'][0] = 1.0;
-         bary['weights'][1] = 0.0;
-         bary['weights'][2] = 0.0;
+         if(bary.weights[1] >= bary.weights[0] && bary.weights[1] >= bary.weights[2]) id = 1;
+         if(bary.weights[2] >= bary.weights[0] && bary.weights[2] >= bary.weights[1]) id = 2;
+         bary['weights'][id] = 1.0;
          */
+         bary['weights'][0] = 1.0;
          //render the weight 3-combine mpi
          this.blendPass.uniforms.weight1.value = bary['weights'][0];
          this.blendPass.uniforms.weight2.value = bary['weights'][1];
          this.blendPass.uniforms.weight3.value = bary['weights'][2];
          this.blendComposer.render();
     }
+    /*
+    composeBary(){       
+        var bary = this.bary();  
+        this.write_camera_location(bary['ids']);
+        var sum_weight = bary['weights'][0] + bary['weights'][1] + bary['weights'][2];
+        for(var b = 0; b < 3; b++){
+            bary['weights'][b] = bary['weights'][b] / sum_weight;
+            var id = bary['ids'][b];
+            this.rotateMpi(b, id);
+            // render each MPI
+            this.composers[b].render();            
+         }       
+         //render the weight 3-combine mpi
+         this.blendPass.uniforms.weight1.value = bary['weights'][0];
+         this.blendPass.uniforms.weight2.value = bary['weights'][1];
+         this.blendPass.uniforms.weight3.value = bary['weights'][2];
+         this.blendComposer.render();
+    }
+    */
     precompile(){
         for(var i = 0; i < 3; i++){
             this.renderer.compile(this.scenes[i], this.camera);
@@ -453,8 +485,10 @@ class NeXviewerApp{
             self.cfg.compose_mode = this.value;
             if(this.value == "closet"){
                 self.composers[0].renderToScreen = true;
+                self.blendComposer.renderToScreen = false;
             }else{
                 self.composers[0].renderToScreen = false;
+                self.blendComposer.renderToScreen = true;
             }
         });
         $("#sel-control-type").change(function(e){
@@ -475,7 +509,7 @@ class NeXviewerApp{
         });
     }
     predictFrame(){
-        this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
+        //this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         console.log('predicting... frame:'+this.cfg.nerf_path.frame_id)
         if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
@@ -485,12 +519,6 @@ class NeXviewerApp{
         this.nextNerfCameraPose();
         this.composeFrame();
         this.capturer.capture(this.renderer.domElement);
-        /*
-        var rawPixelData = new Float32Array(800*800*4);
-        this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, 800, 800, bufferData);
-        console.log('predict the value')
-        console.log(bufferData);
-        */
         this.stats.end();
     }
     predictSave(){
@@ -625,6 +653,7 @@ $(document).ready(function() {
         document.getElementById("danger-model-text").innerHTML="<b>404:</b> Scene \""+params.scene+"\" doesn't not found";
     });
     $.getJSON(params.scene+"/transforms_test.json").done(function(transforms){
+        console.log(transforms);
         transforms.frame_id = 0;
         transforms_test = transforms;
     }).always(function(){

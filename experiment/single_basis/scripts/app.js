@@ -57,7 +57,7 @@ class NeXviewerApp{
         this.renderer = new THREE.WebGLRenderer({
             alpha: true,
             premultipliedAlpha: this.cfg.texture_ext != 'npy', //affact performance =X
-            precision: "highhp", //can be reduce for better performance
+            precision: "highp", //can be reduce for better performance
             stencil: false,
             depth: false,
             powerPreference: "high-performance",
