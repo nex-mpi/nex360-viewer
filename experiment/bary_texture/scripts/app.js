@@ -116,7 +116,7 @@ class NeXviewerApp{
             });
         }
         this.blendComposer = new THREE.EffectComposer(this.renderer, this.blendComposerTarget);
-        this.blendComposer.renderToScreen = false;
+        //this.blendComposer.renderToScreen = false;
         this.blendPass = new THREE.ShaderPass(new THREE.ShaderMaterial({
             transparent: true,
             uniforms: {
