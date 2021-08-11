@@ -475,23 +475,32 @@ class NeXviewerApp{
         });
     }
     predictFrame(){
-        this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         console.log('predicting... frame:'+this.cfg.nerf_path.frame_id)
-        if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
-            return this.predictSave();
-        }
         this.stats.begin();
         this.nextNerfCameraPose();
         this.composeFrame();
         this.capturer.capture(this.renderer.domElement);
-        /*
-        var rawPixelData = new Float32Array(800*800*4);
-        this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, 800, 800, bufferData);
-        console.log('predict the value')
-        console.log(bufferData);
-        */
         this.stats.end();
+
+        if(this.cfg.nerf_path.frame_id == 1){
+            const blendBuffer = this.blendComposer.writeBuffer
+            var rawPixelData = new Float32Array(blendBuffer.width * blendBuffer.height*4);
+            // re-rendered to  texture to save a file. Should change to render only 1 time and save to file
+            this.blendComposer.renderToScreen = false;
+            this.composeFrame();
+            this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, blendBuffer.width, blendBuffer.height, rawPixelData);
+            this.blendComposer.renderToScreen = true;
+            console.log('predict the readRenderTargetPixels...');
+            export2json({"image_data":Array.from(rawPixelData)}, 'r_'+(this.cfg.nerf_path.frame_id-1)+'.json'); 
+        }
+
+        if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
+            return this.predictSave();
+        }else{
+            this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
+        }
+
     }
     predictSave(){
         this.cfg.nerf_path.frame_id = 0;
@@ -559,6 +568,7 @@ function load_image_pixel(url, callback){
     }
 }
 $(document).ready(function() {
+    console.log('version save to file');
     const urlSearchParams = new URLSearchParams(window.location.search);
     const params = Object.fromEntries(urlSearchParams.entries());
     if (typeof params.scene === 'undefined'){
