@@ -495,7 +495,7 @@ class NeXviewerApp{
             export2json({"image_data":Array.from(rawPixelData)}, 'r_'+(this.cfg.nerf_path.frame_id-1)+'.json'); 
         }
 
-        if(this.cfg.nerf_path.frame_id + 1 > this.matrices['nerf_c2ws'].length){
+        if(this.cfg.nerf_path.frame_id > this.matrices['nerf_c2ws'].length){
             return this.predictSave();
         }else{
             this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
