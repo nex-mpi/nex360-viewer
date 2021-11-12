@@ -47,7 +47,7 @@ class NeXviewerApp{
         var targetWidth = 800; // window.innerWidth 
         var ratio = targetWidth / targetHeight;
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
-        this.camera.up.set( 0, 0, 1 );
+        // this.camera.up.set( 0, 0, 1 );
         // WebGL renderer config
         this.renderer = new THREE.WebGLRenderer({
             alpha: true,

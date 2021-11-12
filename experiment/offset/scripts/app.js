@@ -143,6 +143,20 @@ class NeXviewerApp{
         this.capturer = new CCapture( { name: "nex360-predict", format: "png" } );
         document.getElementById('threejs-wrapper').appendChild(this.renderer.domElement );
     }
+    getPlaneDepth(planeId, mpiId){
+        if(Array.isArray(this.cfg.planes[0])){
+            return this.cfg.planes[mpiId][planeId]
+        }else{
+            return this.cfg.planes[planeId]
+        }
+    }
+    countPlanes(mpiId){
+        if(Array.isArray(this.cfg.planes[0])){
+            return this.cfg.planes[mpiId].length;
+        }else{
+            return this.cfg.planes.length;
+        }
+    }
     initScene(){       
         // prepare scene     
         /*   
@@ -166,8 +180,8 @@ class NeXviewerApp{
                 "group": new THREE.Group()
             };
             this.materials[mpiId] = [];
-            for(var i = 0; i < this.cfg.planes.length; i++){
-                var depth = this.cfg.planes[i];
+            for(var i = 0; i < this.countPlanes(mpiId); i++){
+                var depth = this.getPlaneDepth(i, mpiId);
                 var plane_width = fov_tan * (depth * plane_width_ratio) * 2.0;
                 var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
                 var layer_id = Math.floor(i / this.cfg.num_sublayers)
@@ -250,7 +264,7 @@ class NeXviewerApp{
         var loadMpis = function(mpiId){
             var id = String(mpiId).padStart(2, '0');
             self.textures[mpiId] = {'a':[],'k':[],'c':[]};            
-            for(var j = 0; j < Math.floor(self.cfg.planes.length / 4); j++){
+            for(var j = 0; j < Math.floor(self.countPlanes(mpiId) / 4); j++){
                 var layer_id = String(j).padStart(2, '0')
                 self.textures[mpiId]['a'].push(alphaLoader.load(self.path+"/mpi"+id+"_a"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
             }                
@@ -315,7 +329,7 @@ class NeXviewerApp{
         if(this.mpis_ids[b] != id) {
             this.mpis[b].group.applyMatrix4(this.matrices['w2cs'][this.mpis_ids[b]]);
             this.mpis[b].group.applyMatrix4(this.matrices['c2ws'][id]);
-            for(var planeId = 0; planeId < this.cfg.planes.length; planeId++){
+            for(var planeId = 0; planeId < this.mpis[b].planes.length; planeId++){
                 this.mpis[b].planes[planeId].material = this.materials[id][planeId];
             }
             this.mpis_ids[b]= id;            
@@ -381,13 +395,25 @@ class NeXviewerApp{
     }
     bary(){
         // get bary centric id and weight
+        var isTNT = true;
         var cam_location = this.camera.position.clone();
-        // NeX axis that use to create delone map is opencv convention 
-        cam_location.y = cam_location.y * -1;
-        cam_location.z = cam_location.z * -1;
+        if(isTNT){ 
+            // somehow, TNT use different axis than nerf.
+            var x = cam_location.x;
+            var y = cam_location.y;
+            var z = cam_location.z;
+            cam_location.x = -z;
+            cam_location.y = x;
+            cam_location.z = -y;
+        }else{
+            // NeX axis that use to create delone map is opencv convention 
+            cam_location.y = cam_location.y * -1;
+            cam_location.z = cam_location.z * -1;            
+        }
         var cam_norm = cam_location.normalize();
         var stero_location = this.sterographicProjection(cam_norm);
         var anchor = this.get_bary_anchor(stero_location);
+        this.write_bary_anchor(anchor);
         if(anchor == this.anchor){
             return this.bary_data;
         }
@@ -405,7 +431,7 @@ class NeXviewerApp{
         this.bary_data = {"ids": ids, "weights": weights}
         return this.bary_data;
     }
-    get_bary_anchor(v){
+    get_bary_anchor(v, swap_axis=true){
         v.clampScalar(-1.0,1.0);
         v.addScalar(1.0);
         v.multiplyScalar(0.5);
@@ -415,7 +441,10 @@ class NeXviewerApp{
         if( this.cfg.texture_ext == 'npy'){
             num_channel = 3;
         }
-        return (v.x * this.bary_width + v.y) * num_channel;
+        if(swap_axis){
+            return (v.x * this.bary_width + v.y) * num_channel;
+        }
+        return (v.y * this.bary_width + v.x) * num_channel;
     }
     write_bary_anchor(anchor){ 
         anchor = anchor / 4;       

@@ -90,8 +90,15 @@ class NeXworld{
     }
 }
 
-$(document).ready(function() {   
-    $.getJSON("data/config.json", function(cfg) {
+$(document).ready(function() {
+    const urlSearchParams = new URLSearchParams(window.location.search);
+    const params = Object.fromEntries(urlSearchParams.entries());
+    if (typeof params.scene === 'undefined'){
+        params.scene = 'data/';
+    }
+    
+    
+    $.getJSON(params.scene + '/config.json', function(cfg) {
         window.app = new NeXworld(cfg);
         window.app.render();    
         function onStorageChange(){

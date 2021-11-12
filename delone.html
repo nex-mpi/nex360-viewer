@@ -54,7 +54,12 @@
         }
         function main(){
             //var scene_dir = findGetParameter('scene');
-            var scene_dir = 'data/lego';
+            const urlSearchParams = new URLSearchParams(window.location.search);
+            const params = Object.fromEntries(urlSearchParams.entries());
+            if (typeof params.scene === 'undefined'){
+                params.scene = 'data/lego';
+            }
+            var scene_dir = params.scene;
             setDeloneImage(scene_dir);
             window.addEventListener("storage", onStorageChange, false);
         }
