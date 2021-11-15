@@ -4,12 +4,25 @@ class NeXviewerApp{
         this.initThreejs();
         this.initMatrices();
         var self = this;
-        this.loadTexture(function(){            
+        
+        this.loadTexture(function(){           
             self.initScene();
+            self.simpleCube(self);
             if(typeof(callback) === typeof(Function)){
                 callback(self);
-            }
+            }            
         });
+        
+    }
+    simpleCube(owner){
+        //add simple cube to scene to make sure everything work
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+        console.log(owner);
+        owner.cube = new THREE.Mesh( geometry, material );
+        owner.scenes[0].add(owner.cube)
+        owner.scenes[1].add(owner.cube)
+        owner.scenes[2].add(owner.cube)
     }
     prepareConfig(cfg){
         this.cfg = cfg;
@@ -40,16 +53,16 @@ class NeXviewerApp{
             this.background_color = "white";
         }
         if (typeof this.cfg.camera_position === 'undefined'){
+            //set default camera location to first MPI location
             this.cfg.camera_position = {
-                "x": 0.8205487132072449,
-                "y": 3.3249945640563965,
-                "z": 2.066666603088379
+                "x": this.cfg.c2ws[0][0][3],
+                "y": this.cfg.c2ws[0][1][3],
+                "z": this.cfg.c2ws[0][2][3]
             };
         }
         //prepare barycentric
-        this.bary = cfg['bary'];
-        this.bary['scaler'] = new THREE.Vector2(this.bary_width - 1.0, this.bary_height-1.0);
-        this.bary['anchor'] = -1;
+        this.cfg['bary']['scaler'] = new THREE.Vector2(this.cfg['bary']['width'] - 1.0, this.cfg['bary']['height']-1.0);
+        this.cfg['bary']['anchor'] = -1;
     }
     initThreejs(){
         // intial stat
@@ -61,6 +74,11 @@ class NeXviewerApp{
         var targetHeight = this.cfg['height'];
         var targetWidth = this.cfg['width']; // window.innerWidth 
         var ratio = targetWidth / targetHeight;
+        //find fov_degree, which are fov in vertical direction
+        // @see https://threejs.org/docs/#api/en/cameras/PerspectiveCamera.fov
+        var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal']
+        var fov_radian = Math.atan(fov_height_tan) * 2.0;
+        this.cfg.fov_degree = fov_radian * 180 / Math.PI
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
         this.camera.up.set( 0, 0, 1 );
 
@@ -74,6 +92,9 @@ class NeXviewerApp{
             powerPreference: "high-performance",
             antialias: true
         });
+        var glContext = this.renderer.getContext();
+        var maxTextureSize = glContext.getParameter(glContext.MAX_TEXTURE_SIZE);
+        var maxImageUnit = glContext.getParameter(glContext.MAX_TEXTURE_IMAGE_UNITS)
         if(!this.renderer.capabilities.isWebGL2) error_dialogue("<b>WEBGL2:</b> This page require WebGL2 to be render.");
         this.renderer.context.canvas.addEventListener("webglcontextlost", function(event){
             event.preventDefault();
@@ -166,7 +187,7 @@ class NeXviewerApp{
             return this.cfg.planes.length;
         }
     }
-    initScene(){       
+    initScene(){ 
         // prepare scene     
         /*   
         const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -177,43 +198,57 @@ class NeXviewerApp{
         this.resetCameraPose();
         this.materials = {};
         this.mpis = {};
-        this.mpis_ids = [0,1,2];
-        this.prev_id = 0;
-        var fov_tan = Math.tan(this.cfg.fov_radian / 2.0);
-        var plane_width_ratio = (this.cfg.width / 2.0 + this.cfg.offset) / (this.cfg.width  / 2.0);
-
-        for(var mpiId = 0; mpiId < this.cfg.c2ws.length; mpiId++) 
+        var num_mpis = this.textures["num"]["mpi"].length;
+        if(num_mpis < 2){
+            this.mpi_ids = [0,0,0];
+        }else{
+            this.mpis_ids = [0,1,2];
+        }
+        var fov_width_tan = 0.5 * this.cfg['width']  / this.cfg['focal']
+        var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal']
+        //for(var mpiId = 0; mpiId < num_mpis; mpiId++) 
+        for(var counter=0; counter < 30; counter++)
         {
+            var mpiId = 0; //TODO: remove;
+            var plane_width_ratio = (this.cfg['width'] / 2.0 + this.cfg['offset'][mpiId]) / (this.cfg['width']  / 2.0);
+            var plane_height_ratio = (this.cfg['width']  / 2.0 + this.cfg['offset'][mpiId]) / (this.cfg['height']  / 2.0);    
             this.mpis[mpiId] = {
                 "planes": [],
                 "group": new THREE.Group()
             };
             this.materials[mpiId] = [];
-            for(var i = 0; i < this.countPlanes(mpiId); i++){
-                var depth = this.getPlaneDepth(i, mpiId);
-                var plane_width = fov_tan * (depth * plane_width_ratio) * 2.0;
-                var plane_geo = new THREE.PlaneGeometry(plane_width, plane_width);
-                var layer_id = Math.floor(i / this.cfg.num_sublayers)
+            var basis_align = new THREE.Matrix3();
+            var m = this.cfg.basis_align[mpiId];
+            basis_align.set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[0][1], m[2][2]);
+            var v = new THREE.Vector3();
+            v.set(0.0, 0.0, 1.0);
+            v.applyMatrix3(basis_align);
+            for(var i = 0; i < this.cfg['planes'][mpiId].length; i++){
+                var depth = this.cfg['planes'][mpiId][i];
+                var plane_width = fov_width_tan * (depth * plane_width_ratio) * 2.0;
+                var plane_height = fov_height_tan * (depth * plane_height_ratio) * 2.0;;
+                var plane_geo = new THREE.PlaneGeometry(plane_width, plane_height);
+                var layer_id = Math.floor(i / this.cfg.num_sublayers[mpiId])
                 this.materials[mpiId].push(new THREE.ShaderMaterial({
                     transparent: true,
                     uniforms: {   
                         alpha_ch: {value: i % 4},
-                        plane_id: {value: i},                   
-                        mpi_a: { type: "t", value: this.textures[mpiId]['a'][Math.floor(i/4)]},
-                        mpi_b0: { type: "t", value: this.textures['b0']},
-                        mpi_b1: { type: "t", value: this.textures['b1']},
-                        mpi_c: { type: "t", value: this.textures[mpiId]['c'][layer_id]},
-                        mpi_k1: { type: "t", value: this.textures[mpiId]['k'][layer_id][0]},
-                        mpi_k2: { type: "t", value: this.textures[mpiId]['k'][layer_id][1]},
-                        mpi_k3: { type: "t", value: this.textures[mpiId]['k'][layer_id][2]},
-                        mpi_k4: { type: "t", value: this.textures[mpiId]['k'][layer_id][3]},
-                        mpi_k5: { type: "t", value: this.textures[mpiId]['k'][layer_id][4]},
-                        mpi_k6: { type: "t", value: this.textures[mpiId]['k'][layer_id][5]},
+                        plane_id: {value: i},
+                        basis_align: {value: basis_align},
+                        mpi_a: { type: "t", value: this.textures[mpiId]['alpha'][Math.floor(i/4)]},
+                        mpi_b0: { type: "t", value: this.textures[mpiId]['basis'][0]},
+                        mpi_b1: { type: "t", value: this.textures[mpiId]['basis'][1]},
+                        mpi_c: { type: "t", value: this.textures[mpiId]['color'][layer_id]},
+                        mpi_k0: { type: "t", value: this.textures[mpiId]['coeff'][layer_id][0]},
+                        mpi_k1: { type: "t", value: this.textures[mpiId]['coeff'][layer_id][1]},
+                        mpi_k2: { type: "t", value: this.textures[mpiId]['coeff'][layer_id][2]},
+                        mpi_k3: { type: "t", value: this.textures[mpiId]['coeff'][layer_id][3]},
+                        mpi_k4: { type: "t", value: this.textures[mpiId]['coeff'][layer_id][4]},
+                        mpi_k5: { type: "t", value: this.textures[mpiId]['coeff'][layer_id][5]},
                     },
                     vertexShader: planeVertexShader,
                     fragmentShader: planeFragmentShader,
                 }));
-
                 this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, this.materials[mpiId][i])); 
                 this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
                 this.mpis[mpiId].group.add(this.mpis[mpiId].planes[i]);
@@ -227,8 +262,15 @@ class NeXviewerApp{
         //document.getElementById('progress-texture-wrapper').style.display = 'block';
         $('#progress-barycentric-wrapper').hide();
         $('#progress-texture-wrapper').show();
+        //TODO: REMOVE when debug
         var self = this;
+        var num_mpis = 1;
+        /*
+        this.cfg.compose_mode = 'closet';
+        this.composers[0].renderToScreen = true;
+        this.blendComposer.renderToScreen = false;
         var num_mpis = this.cfg.c2ws.length;
+        */
         //count number of files to load.
         var num_files = {'total': 0, 'mpi':[]};
         for(let i = 0; i < num_mpis; i++){
@@ -241,40 +283,29 @@ class NeXviewerApp{
             num_files['mpi'].push(mpi_files)
             num_files['total'] += mpi_files['total'];
         }
-        console.log(num_files);
-        return ;
-        var files_per_mpi = 48 + (6 * 16) + 16;
-        // mpi_b + mpi_a + coeff + mpi_c
-        var total_texture = (2*1) + (48 * num_mpis) + (6 * 16 * num_mpis) + (1 * 16* num_mpis); 
+        this.textures = {'num': num_files}
         var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
         var alphaLoader = texloader;
         if(this.cfg.texture_ext == 'npy'){
             alphaLoader = new THREE.NumpyTextureLoader();
         }
-        console.log('texture ext: '+this.cfg.texture_ext)
         var self = this;
-        var textureCallback = function(texture){
+        var progressbarUpdate = function(){
             loaded_texture++;
-            document.getElementById('progress-texture-val').value = (loaded_texture / total_texture) * 100.0;
-            document.getElementById('progress-texture-text').innerText = ''+loaded_texture+' / '+total_texture;
-            self.renderer.initTexture(texture);
-            if(loaded_texture >= total_texture){
+            document.getElementById('progress-texture-val').value = (loaded_texture / num_files['total']) * 100.0;
+            document.getElementById('progress-texture-text').innerText = ''+loaded_texture+' / '+num_files['total'];
+            if(loaded_texture >= num_files['total']){
                 document.getElementById('progress-texture-wrapper').style.display = 'none';
                 callback();
             }
         }
-        
-        this.textures = {
-            "b0": alphaLoader.load(this.path+"/mpi_b0."+self.cfg.texture_ext, textureCallback),
-            "b1": alphaLoader.load(this.path+"/mpi_b1."+self.cfg.texture_ext, textureCallback),
-        }
         var count_mpi_load = 0;
         var loaded_files_on_mpi = 0;
-        var loadTextureCallback = function(texture){
-            textureCallback(texture);
+        var mpiTextureCallback = function(texture){
             loaded_files_on_mpi++;
-            if(loaded_files_on_mpi>=files_per_mpi){
+            self.renderer.initTexture(texture);
+            if(loaded_files_on_mpi>=num_files['mpi'][count_mpi_load]['total']){
                 count_mpi_load++;
                 if(count_mpi_load < num_mpis){
                     loaded_files_on_mpi = 0;
@@ -283,24 +314,31 @@ class NeXviewerApp{
                     }, 10); // need to a delay to fool chrome to avoid insufficient load error.
                 }
             }
-        }        
+            progressbarUpdate();
+        }  
         var loadMpis = function(mpiId){
-            var id = String(mpiId).padStart(2, '0');
-            self.textures[mpiId] = {'a':[],'k':[],'c':[]};            
-            for(var j = 0; j < Math.floor(self.countPlanes(mpiId) / 4); j++){
-                var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['a'].push(alphaLoader.load(self.path+"/mpi"+id+"_a"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
-            }                
-            for(var j = 0; j < self.cfg.num_layers; j++){
-                var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['c'].push(alphaLoader.load(self.path+"/mpi"+id+"_c_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
-            }                       
-            for(var j = 0; j < self.cfg.num_layers; j++){
-                var layer_id = String(j).padStart(2, '0')
-                self.textures[mpiId]['k'].push([])
-                for(var k = 1; k <= 6; k++){
-                    self.textures[mpiId]['k'][j].push(alphaLoader.load(self.path+"/mpi"+id+"_k"+k+"_l"+layer_id+"."+self.cfg.texture_ext, loadTextureCallback));
+            self.textures[mpiId] = {'alpha':[],'basis':[],'color':[], 'coeff': []};      
+            var shortkey = {'alpha': 'a', 'basis': 'b', 'color': 'c', 'coeff': 'k'};
+            var mpi_pad_id = String(mpiId).padStart(2, '0');
+            // load alpha/basis/color texture
+            ['alpha', 'basis', 'color'].forEach(function(keyname){
+                for(var j=0; j < num_files['mpi'][mpiId][keyname]; j++){
+                    var layer_id = String(j).padStart(2, '0')
+                    var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_"+shortkey[keyname]+layer_id+"."+self.cfg.texture_ext;
+                    var texture = alphaLoader.load(url, mpiTextureCallback)
+                    self.textures[mpiId][keyname].push(texture);
                 }
+            })
+            // load coefficent texture
+            for(var j=0; j<num_files['mpi'][mpiId]['color']; j++){
+                var layerTextures = [];
+                var layer_id = String(j).padStart(2, '0')
+                for(var k = 0; k < num_files['mpi'][mpiId]['coeff']; k++){
+                    var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_k"+layer_id+"_"+k+"."+self.cfg.texture_ext;
+                    var texture = alphaLoader.load(url, mpiTextureCallback);
+                    layerTextures.push(texture);
+                }
+                self.textures[mpiId]['coeff'].push(layerTextures);
             }
         }
         loadMpis(0);         
@@ -349,6 +387,7 @@ class NeXviewerApp{
         this.stats.end();
     }
     rotateMpi(b, id){
+        if(this.textures["num"]["mpi"].length == 1) return; //DO NOT CHANGE MPI when debug with single mpi
         if(this.mpis_ids[b] != id) {
             this.mpis[b].group.applyMatrix4(this.matrices['w2cs'][this.mpis_ids[b]]);
             this.mpis[b].group.applyMatrix4(this.matrices['c2ws'][id]);
@@ -358,6 +397,7 @@ class NeXviewerApp{
             this.mpis_ids[b]= id;            
         }
     }
+    
     composeFrame(){
         if(this.cfg.compose_mode == 'closet'){
             this.composeSingle();
@@ -377,6 +417,11 @@ class NeXviewerApp{
         this.rotateMpi(0, id);
         this.composers[0].render();  
     }
+    /*
+    composeFrame(){
+        this.composers[0].render();  
+    }*/
+
     composeLinear(){
         console.error("HAVEN'T IMPLEMENT YET");
     }
@@ -403,6 +448,8 @@ class NeXviewerApp{
          this.blendComposer.render();
     }
     precompile(){
+        return; //TODO: NEED TO BRINGBACK PRECOMPILE ON ACTUAL BUILD
+        var num_mpi = this.textures["num"]["mpi"].length;
         for(var i = 0; i < 3; i++){
             this.renderer.compile(this.scenes[i], this.camera);
         }
@@ -412,7 +459,7 @@ class NeXviewerApp{
                 this.scenes[i].add(this.mpis[i].group);
             }
         }
-        for(var i = 3; i < 30; i++){
+        for(var i = 3; i < num_mpi; i++){
             this.mpis[i].group.clear();
             this.mpis[i].group.removeFromParent();
         }        
@@ -422,26 +469,17 @@ class NeXviewerApp{
         this.animate();
     }
     bary(){
+        return {'ids':[0,1,2],'weights':[1.0, 0.0 ,0.0]}
+        /*
         // get bary centric id and weight
-        var isTNT = true;
         var cam_location = this.camera.position.clone();
-        if(isTNT){ 
-            // somehow, TNT use different axis than nerf.
-            var x = cam_location.x;
-            var y = cam_location.y;
-            var z = cam_location.z;
-            cam_location.x = -z;
-            cam_location.y = x;
-            cam_location.z = -y;
-        }else{
-            // NeX axis that use to create delone map is opencv convention 
-            cam_location.y = cam_location.y * -1;
-            cam_location.z = cam_location.z * -1;            
-        }
+        cam_location.y = cam_location.y * -1;
+        cam_location.z = cam_location.z * -1;            
         var cam_norm = cam_location.normalize();
         var stero_location = this.sterographicProjection(cam_norm);
         var anchor = this.get_bary_anchor(stero_location);
         this.write_bary_anchor(anchor);
+        
         if(anchor == this.anchor){
             return this.bary_data;
         }
@@ -449,36 +487,37 @@ class NeXviewerApp{
         var ids = [], weights = [];
         for(var i = 0; i < 3; i++){
             if(this.cfg.texture_ext == 'npy'){ 
-                ids.push(this.bary_ids[anchor+i]);
-                weights.push(this.bary_weights[anchor+i]);            
+                ids.push(this.cfg['bary']['ids'][anchor+i]);
+                weights.push(this.cfg['bary']['weights'][anchor+i]);            
             }else{
-                ids.push(this.color2id(this.bary_ids[anchor+i]));
-                weights.push(this.color2float(this.bary_weights[anchor+i]));
+                ids.push(this.color2id(this.cfg['bary']['ids'][anchor+i]));
+                weights.push(this.color2float(this.cfg['bary']['weights'][anchor+i]));
             }
         }
-        this.bary_data = {"ids": ids, "weights": weights}
+        this.bary_data = {"ids": ids, "weights": weights};
         return this.bary_data;
+        */
     }
     get_bary_anchor(v, swap_axis=true){
         v.clampScalar(-1.0,1.0);
         v.addScalar(1.0);
         v.multiplyScalar(0.5);
-        v.multiply(this.bary_scaler);
+        v.multiply(this.cfg['bary']['scaler']);
         v.round();
         var num_channel = 4;
         if( this.cfg.texture_ext == 'npy'){
             num_channel = 3;
         }
         if(swap_axis){
-            return (v.x * this.bary_width + v.y) * num_channel;
+            return (v.x * this.cfg['bary']['width'] + v.y) * num_channel;
         }
-        return (v.y * this.bary_width + v.x) * num_channel;
+        return (v.y * this.cfg['bary']['width'] + v.x) * num_channel;
     }
     write_bary_anchor(anchor){ 
         anchor = anchor / 4;       
         localStorage.setItem('bary_anchor',JSON.stringify({
-            'x': anchor % this.bary_width, 
-            'y': Math.floor(anchor / this.bary_width)
+            'x': anchor % this.cfg['bary']['width'], 
+            'y': Math.floor(anchor / this.cfg['bary']['width'],)
         }));
     }
     write_camera_location(ids){
@@ -577,7 +616,7 @@ class NeXviewerApp{
             this.camera.rotation.set(0,0,0);           
             this.camera.up.set( 0, 1, 0 );                
         }else{
-            this.camera.up.set( 0, 0, 1 );
+            this.camera.up.set( 0, 1, 0 );
             this.camera.position.set(
                 this.cfg.camera_position.x,
                 this.cfg.camera_position.y,
