@@ -7,7 +7,6 @@ class NeXviewerApp{
         
         this.loadTexture(function(){           
             self.initScene();
-            self.simpleCube(self);
             if(typeof(callback) === typeof(Function)){
                 callback(self);
             }            
@@ -427,6 +426,7 @@ class NeXviewerApp{
     }
     composeBary(){       
         var bary = this.bary();  
+        console.log(bary['weights']);
         this.write_camera_location(bary['ids']);
         var sum_weight = bary['weights'][0] + bary['weights'][1] + bary['weights'][2];
         for(var b = 0; b < 3; b++){
@@ -469,20 +469,14 @@ class NeXviewerApp{
         this.animate();
     }
     bary(){
-        return {'ids':[0,1,2],'weights':[1.0, 0.0 ,0.0]}
-        /*
-        // get bary centric id and weight
-        var cam_location = this.camera.position.clone();
-        cam_location.y = cam_location.y * -1;
-        cam_location.z = cam_location.z * -1;            
-        var cam_norm = cam_location.normalize();
-        var stero_location = this.sterographicProjection(cam_norm);
-        var anchor = this.get_bary_anchor(stero_location);
-        this.write_bary_anchor(anchor);
-        
-        if(anchor == this.anchor){
-            return this.bary_data;
-        }
+        var cam_loc = this.camera.position.clone();
+        // convert to opencv converntion
+        cam_loc.y = cam_loc.y * -1;
+        cam_loc.z = cam_loc.z * -1;
+        var stereo_loc = this.sterographicProjection(cam_loc.normalize());
+        var anchor = this.getBaryAnchor(stereo_loc);
+        this.writeBaryAnchor(anchor);
+        if(anchor == this.anchor && this.bary_data) return this.bary_data;
         this.anchor = anchor;
         var ids = [], weights = [];
         for(var i = 0; i < 3; i++){
@@ -495,25 +489,20 @@ class NeXviewerApp{
             }
         }
         this.bary_data = {"ids": ids, "weights": weights};
-        return this.bary_data;
-        */
+        return this.bary_data;        
     }
-    get_bary_anchor(v, swap_axis=true){
+    getBaryAnchor(v){
+        // get the location in data array of bary_indices/bary_weight from stereo_loc
         v.clampScalar(-1.0,1.0);
         v.addScalar(1.0);
         v.multiplyScalar(0.5);
         v.multiply(this.cfg['bary']['scaler']);
         v.round();
-        var num_channel = 4;
-        if( this.cfg.texture_ext == 'npy'){
-            num_channel = 3;
-        }
-        if(swap_axis){
-            return (v.x * this.cfg['bary']['width'] + v.y) * num_channel;
-        }
+        // if we draw png to canvas first it will become 4 channel
+        var num_channel = (this.cfg.texture_ext == 'png') ? 4 : 3;
         return (v.y * this.cfg['bary']['width'] + v.x) * num_channel;
     }
-    write_bary_anchor(anchor){ 
+    writeBaryAnchor(anchor){ 
         anchor = anchor / 4;       
         localStorage.setItem('bary_anchor',JSON.stringify({
             'x': anchor % this.cfg['bary']['width'], 
@@ -535,10 +524,11 @@ class NeXviewerApp{
         return parseFloat(color) / 255.0;
     }
     sterographicProjection(vec){
-        var divder = (1.0 - vec.z)  + 1e-7;
+        // y is "up" or a projection axis
+        var divder = (1.0 - vec.y)  + 1e-7;
         return  new THREE.Vector2(
             vec.x / divder,
-            vec.y / divder
+            vec.z / divder
         );
     }
     regisControl(){
@@ -723,7 +713,7 @@ $(document).ready(function() {
                 });
                 load_image_pixel(params.scene+'/bary_weight.png', function(err, data){
                     if(err) error_dialogue("<b>404:</b> Scene \""+params.scene+"\" require bary_weight.png");
-                    cfg['bary']['weight'] = data['weight'];
+                    cfg['bary']['weights'] = data['data'];
                     waiting_return();
                 });
             }
