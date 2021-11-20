@@ -63,6 +63,9 @@ class NeXviewerApp{
         //prepare barycentric
         this.cfg['bary']['scaler'] = new THREE.Vector2(this.cfg['bary']['width'] - 1.0, this.cfg['bary']['height']-1.0);
         this.cfg['bary']['anchor'] = -1;
+        //prepare zip.js
+        var zip_workers =  ["../../scripts/thrid-party/z-worker.js"]
+        zip.configure({ workerScripts: { deflate: zip_workers, inflate: zip_workers} });
     }
     initThreejs(){
         // intial stat
@@ -171,7 +174,7 @@ class NeXviewerApp{
             this.blendComposer.addPass(new THREE.SMAAPass(targetWidth, targetHeight));
         }
         //document.body.appendChild(this.renderer.domElement );       
-        this.capturer = new CCapture( { name: "nex360-predict", format: "png" } );
+        this.captured_frame = [];
         document.getElementById('threejs-wrapper').appendChild(this.renderer.domElement );
     }
     getPlaneDepth(planeId, mpiId){
@@ -652,7 +655,6 @@ class NeXviewerApp{
             $("#rendering-total").text(self.matrices['nerf_c2ws'].length);
             $("#rendering-state-predicting").show();
             self.cfg.nerf_path.frame_id = 0;
-            self.capturer.start();
             self.predictFrame();
         });
     }
@@ -661,20 +663,21 @@ class NeXviewerApp{
         console.log('predicting... frame:'+this.cfg.nerf_path.frame_id)
         this.stats.begin();
         this.nextNerfCameraPose();
-        this.composeFrame();
-        this.capturer.capture(this.renderer.domElement);
-        this.stats.end();
-
-        if(false && this.cfg.nerf_path.frame_id == 1){
+        if(this.cfg.texture_ext == "npy"){
+            //save raw float32 output from webgl
+            this.composeFrame(); //render the image to canvas
             const blendBuffer = this.blendComposer.writeBuffer
             var rawPixelData = new Float32Array(blendBuffer.width * blendBuffer.height*4);
             // re-rendered to  texture to save a file. Should change to render only 1 time and save to file
             this.blendComposer.renderToScreen = false;
-            this.composeFrame();
-            this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, blendBuffer.width, blendBuffer.height, rawPixelData);
+            this.composeFrame();  
             this.blendComposer.renderToScreen = true;
-            console.log('predict the readRenderTargetPixels...');
-            export2json({"image_data":Array.from(rawPixelData)}, 'r_'+(this.cfg.nerf_path.frame_id-1)+'.json'); 
+            this.captured_frame.push(rawPixelData);
+        }else{
+            //capture png from canvas
+            this.composeFrame();
+            var pixelData = this.renderer.domElement.toDataURL();
+            this.captured_frame.push(pixelData);
         }
 
         if(this.cfg.nerf_path.frame_id > this.matrices['nerf_c2ws'].length){
@@ -684,12 +687,50 @@ class NeXviewerApp{
         }
 
     }
-    predictSave(){
+    async predictSave(){
+        if(this.cfg.texture_ext == 'npy'){
+            for(var i = 0; i < this.captured_frame.length; i++){
+                this.captured_frame[i] = Array.from(this.captured_frame[i])
+            }
+            export2json({"images": this.captured_frame}, 'rendered.json'); 
+        }else{
+            try {
+                $("#rendering-state-predicting").hide();
+                $("#rendering-text").show();
+                //create zip and download 
+                var zipWriter = new zip.ZipWriter(new zip.BlobWriter("application/zip"));
+                for(var i = 0; i < this.captured_frame.length; i++){
+                    $("#rendering-text").text("adding files to zip... "+i+" / "+this.captured_frame.length);
+                    var fileName = (''+i).padStart(4, '0') + '.png'
+                    await zipWriter.add(
+                        fileName, 
+                        new zip.Data64URIReader(this.captured_frame[i]), 
+                        {
+                            bufferedWrite: true,
+                        }
+                    );
+                }
+                //download zip from blob
+                const blobData = await zipWriter.close({
+                    "onprogress": function(step_id, num_step){
+                        $("#rendering-text").text("compressing zip "+step_id+" / "+num_step);
+                    }
+                })
+                const blobURL = URL.createObjectURL(blobData);
+                const anchor = document.createElement("a");
+				const clickEvent = new MouseEvent("click");
+				anchor.href = blobURL;
+				anchor.download = "nex360.zip";
+				anchor.dispatchEvent(clickEvent);
+            } catch (error) {
+                alert(error);
+            }
+        }
+        this.captured_frame = [];
         this.cfg.nerf_path.frame_id = 0;
+        $("#rendering-text").hide();
         $("#rendering-state-predicting").hide();
         $("#rendering-state-output").show();
-        this.capturer.stop();
-        this.capturer.save();
         this.resetCameraPose();
         $("#rendering-state-output").hide();
         $("#rendering-status-warpper").hide();
