@@ -53,10 +53,11 @@ class NeXviewerApp{
         }
         if (typeof this.cfg.camera_position === 'undefined'){
             //set default camera location to first MPI location
+            var mpi_id = 27;
             this.cfg.camera_position = {
-                "x": this.cfg.c2ws[0][0][3],
-                "y": this.cfg.c2ws[0][1][3],
-                "z": this.cfg.c2ws[0][2][3]
+                "x": this.cfg.c2ws[mpi_id][0][3],
+                "y": this.cfg.c2ws[mpi_id][1][3],
+                "z": this.cfg.c2ws[mpi_id][2][3]
             };
         }
         //prepare barycentric
@@ -75,10 +76,11 @@ class NeXviewerApp{
         var ratio = targetWidth / targetHeight;
         //find fov_degree, which are fov in vertical direction
         // @see https://threejs.org/docs/#api/en/cameras/PerspectiveCamera.fov
-        var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal']
-        var fov_radian = Math.atan(fov_height_tan) * 2.0;
+        //var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal']
+        var fov_radian = 2.0 * Math.atan(0.5 * this.cfg['height'] /  this.cfg['focal']) ;
         this.cfg.fov_degree = fov_radian * 180 / Math.PI
-        this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
+        this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.0001, 1000 );
+        this.camera.filmGauge = this.cfg['width'];
         this.camera.up.set( 0, 0, 1 );
 
         // WebGL renderer config
@@ -199,18 +201,16 @@ class NeXviewerApp{
         this.mpis = {};
         var num_mpis = this.textures["num"]["mpi"].length;
         if(num_mpis < 2){
-            this.mpi_ids = [0,0,0];
+            this.mpis_ids = [0,0,0];
         }else{
             this.mpis_ids = [0,1,2];
         }
-        var fov_width_tan = 0.5 * this.cfg['width']  / this.cfg['focal']
-        var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal']
-        //for(var mpiId = 0; mpiId < num_mpis; mpiId++) 
-        for(var counter=0; counter < 30; counter++)
+        var fov_width_tan = 0.5 * this.cfg['width']  / this.cfg['focal']; 
+        var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal'];
+        for(var mpiId = 0; mpiId < num_mpis; mpiId++) 
         {
-            var mpiId = 0; //TODO: remove;
-            var plane_width_ratio = (this.cfg['width'] / 2.0 + this.cfg['offset'][mpiId]) / (this.cfg['width']  / 2.0);
-            var plane_height_ratio = (this.cfg['width']  / 2.0 + this.cfg['offset'][mpiId]) / (this.cfg['height']  / 2.0);    
+            var plane_width_ratio = ((this.cfg['width'] / 2.0) + this.cfg['offset'][mpiId]) / (this.cfg['width']  / 2.0);
+            var plane_height_ratio = ((this.cfg['height']  / 2.0) + this.cfg['offset'][mpiId]) / (this.cfg['height']  / 2.0);   
             this.mpis[mpiId] = {
                 "planes": [],
                 "group": new THREE.Group()
@@ -219,13 +219,10 @@ class NeXviewerApp{
             var basis_align = new THREE.Matrix3();
             var m = this.cfg.basis_align[mpiId];
             basis_align.set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[0][1], m[2][2]);
-            var v = new THREE.Vector3();
-            v.set(0.0, 0.0, 1.0);
-            v.applyMatrix3(basis_align);
             for(var i = 0; i < this.cfg['planes'][mpiId].length; i++){
                 var depth = this.cfg['planes'][mpiId][i];
                 var plane_width = fov_width_tan * (depth * plane_width_ratio) * 2.0;
-                var plane_height = fov_height_tan * (depth * plane_height_ratio) * 2.0;;
+                var plane_height = fov_height_tan * (depth * plane_height_ratio) * 2.0;
                 var plane_geo = new THREE.PlaneGeometry(plane_width, plane_height);
                 var layer_id = Math.floor(i / this.cfg.num_sublayers[mpiId])
                 this.materials[mpiId].push(new THREE.ShaderMaterial({
@@ -249,12 +246,16 @@ class NeXviewerApp{
                     fragmentShader: planeFragmentShader,
                 }));
                 this.mpis[mpiId].planes.push(new THREE.Mesh(plane_geo, this.materials[mpiId][i])); 
-                this.mpis[mpiId].planes[i].position.z = -depth; // TODO: support proper position]
+                this.mpis[mpiId].planes[i].position.z = -depth; 
                 this.mpis[mpiId].group.add(this.mpis[mpiId].planes[i]);
             }
             var c2w = this.matrices['c2ws'][mpiId].clone();
             this.mpis[mpiId].group.applyMatrix4(c2w);
-            this.scenes[0].add(this.mpis[mpiId].group);
+            //this.scenes[0].add(this.mpis[mpiId].group);
+        }
+        //add inital scene
+        for(var i = 0; i < 3; i++){
+            this.scenes[i].add(this.mpis[this.mpis_ids[i]].group);
         }
     }   
     loadTexture(callback){
@@ -263,12 +264,12 @@ class NeXviewerApp{
         $('#progress-texture-wrapper').show();
         //TODO: REMOVE when debug
         var self = this;
-        var num_mpis = 1;
+        var num_mpis = this.cfg.c2ws.length;
         /*
+        var num_mpis = 1;
         this.cfg.compose_mode = 'closet';
         this.composers[0].renderToScreen = true;
         this.blendComposer.renderToScreen = false;
-        var num_mpis = this.cfg.c2ws.length;
         */
         //count number of files to load.
         var num_files = {'total': 0, 'mpi':[]};
@@ -349,6 +350,13 @@ class NeXviewerApp{
             'nerf_c2ws': [],
             'nerf_w2cs': [],
         }
+        var nerf2glmat = new THREE.Matrix4();
+        nerf2glmat.set(
+            1.0,  0.0, 0.0, 0.0,
+            0.0,  0.0, 1.0, 0.0,
+            0.0, -1.0, 0.0, 0.0,
+            0.0,  0.0, 0.0, 1.0
+        );
         for(var i = 0; i < this.cfg.c2ws.length; i++){
             var c2w_arr = this.cfg.c2ws[i];
             var c2w = new THREE.Matrix4();
@@ -372,6 +380,7 @@ class NeXviewerApp{
                     c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
                     c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
                 );
+                c2w.premultiply(nerf2glmat)
                 this.matrices['nerf_c2ws'].push(c2w);
                 this.matrices['nerf_w2cs'].push(c2w.clone().invert());
             }
@@ -385,18 +394,33 @@ class NeXviewerApp{
         this.composeFrame();
         this.stats.end();
     }
-    rotateMpi(b, id){
-        if(this.textures["num"]["mpi"].length == 1) return; //DO NOT CHANGE MPI when debug with single mpi
-        if(this.mpis_ids[b] != id) {
-            this.mpis[b].group.applyMatrix4(this.matrices['w2cs'][this.mpis_ids[b]]);
-            this.mpis[b].group.applyMatrix4(this.matrices['c2ws'][id]);
-            for(var planeId = 0; planeId < this.mpis[b].planes.length; planeId++){
-                this.mpis[b].planes[planeId].material = this.materials[id][planeId];
-            }
-            this.mpis_ids[b]= id;            
+    rotateMpi(scene_id, mpi_id){
+        var prev_id = this.mpis_ids[scene_id];
+        if(prev_id == mpi_id && this.scenes[scene_id].children.length== 1) return ; // do not update if no change
+        //clear scene
+        for( var i = this.scenes[scene_id].children.length - 1; i >= 0; i--) { 
+            this.scenes[scene_id].remove(this.scenes[scene_id].children[i]); 
+        }
+        //add mpi to scene
+        this.scenes[scene_id].add(this.mpis[mpi_id].group);
+        if(this.scenes[scene_id].children.length != 1){
+            console.error("detech: mpi_id => "+mpi_id);
+        }
+        this.mpis_ids[scene_id] = mpi_id;
+    }
+    setSceneDepth(scene_id, mpi_id, applyMaterial=true){
+        for(var planeId = 0; planeId < this.mpis[scene_id].planes.length; planeId++){
+            if(applyMaterial) this.mpis[scene_id].planes[planeId].material = this.materials[mpi_id][planeId];
+            this.mpis[scene_id].planes[planeId].position.z = -this.cfg.planes[mpi_id][planeId];
         }
     }
-    
+    getSceneDepth(scene_id){
+        var output  = [];
+        for(var planeId = 0; planeId < 192; planeId++){
+            output.push(this.mpis[scene_id].planes[planeId].position.z);
+        }
+        return output;
+    }
     composeFrame(){
         if(this.cfg.compose_mode == 'closet'){
             this.composeSingle();
@@ -416,24 +440,108 @@ class NeXviewerApp{
         this.rotateMpi(0, id);
         this.composers[0].render();  
     }
-    /*
-    composeFrame(){
-        this.composers[0].render();  
-    }*/
-
+    projectCamToRing(){
+        var mpi00_cam = new THREE.Vector3(this.cfg.c2ws[0][0][3], this.cfg.c2ws[0][1][3], this.cfg.c2ws[0][2][3]);
+        var position = this.camera.position.clone();
+        var mpi_radius = mpi00_cam.length();
+        var cam_radius = position.length();
+        var focal = this.cfg.focal;
+        var cy = this.cfg.height / 2.0;
+        var cx = this.cfg.width / 2.0
+        //note that, need to flip y,z axis.
+        var intrinsic = new THREE.Matrix3();
+        intrinsic.set(
+            focal,   0.0,  cx,
+              0.0, -focal,  cy,
+              0.0,   0.0, -1.0
+        )
+        var c2w = this.camera.matrixWorld.clone().elements;
+        var rot = new THREE.Matrix3();
+        rot.set(
+            c2w[0], c2w[4], c2w[8],
+            c2w[1], c2w[5], c2w[9],
+            c2w[2], c2w[6], c2w[10]           
+        );
+        var direction = new THREE.Vector3(cx, cy, 1.0); 
+        direction.applyMatrix3(intrinsic.clone().invert());
+        direction.applyMatrix3(rot);
+        //solve for (position + vec_size * direction)**2 = (mpi_radius) ** 2
+        //using quadratic formular @see https://en.wikipedia.org/wiki/Quadratic_formula
+        var b = (position.x * direction.x) + (position.y * direction.y) + (position.z * direction.z);
+        var c =  (cam_radius * cam_radius) - (mpi_radius * mpi_radius);
+        var vec_size = -b - Math.sqrt((b*b) - c);
+        var projected_cam = position.clone().addScaledVector(direction, vec_size);
+        return projected_cam;
+    }
+    linear(){
+        //return weights and ids same as bary function
+        var projected_cam = this.projectCamToRing();
+        var distances = []
+        for(var i=0; i < this.cfg['c2ws'].length; i++){
+            var c2w = this.cfg['c2ws'][i];
+            var distance = new THREE.Vector3(c2w[0][3], c2w[1][3], c2w[2][3])
+            distance.sub(projected_cam)
+            distances.push({'id': i, 'distance': distance.length()});
+        }
+        var mpi_inds = distances.sort(function(a,b){
+            return a['distance'] > b['distance'];
+        })
+        var w0 = mpi_inds[1]['distance'];
+        var w1 = mpi_inds[0]['distance'];
+        var w_sum = w0 + w1;
+        return {
+            'ids': [mpi_inds[0]['id'], mpi_inds[1]['id']],
+            'weights': [w0 / w_sum, w1 / w_sum],
+        };
+    }
     composeLinear(){
-        console.error("HAVEN'T IMPLEMENT YET");
+       var linear = this.linear();
+       this.write_camera_location(linear['ids']);
+       for(var b = 0; b < 2; b++){
+           this.rotateMpi(b, linear['ids'][b]);
+           this.composers[b].render();  
+       }
+       this.blendPass.uniforms.weight1.value = linear['weights'][0];
+       this.blendPass.uniforms.weight2.value = linear['weights'][1];
+       this.blendPass.uniforms.weight3.value = 0.0;
+       this.blendComposer.render();
     }
     composeBary(){       
         var bary = this.bary();  
-        console.log(bary['weights']);
         this.write_camera_location(bary['ids']);
+        // same mpi can render only onetime, so we combine weight (avoid scene graph conflict)
+        if(bary['ids'][0] == bary['ids'][1]){
+            bary['weights'][0] += bary['weights'][1];
+            bary['weights'][1] = 0.0;
+            bary['weights'][1] = 0.0;
+            this.mpis_ids[1] = bary['ids'][0];
+        }
+        if(bary['ids'][0] == bary['ids'][2]){
+            bary['weights'][0] += bary['weights'][2];
+            bary['weights'][2] = 0.0;
+            this.mpis_ids[2] = bary['ids'][0];
+        }
+        if(bary['ids'][1] == bary['ids'][2]){
+            bary['weights'][1] += bary['weights'][2];
+            bary['weights'][2] = 0.0;
+            this.mpis_ids[2] = bary['ids'][1];
+        }
         var sum_weight = bary['weights'][0] + bary['weights'][1] + bary['weights'][2];
         for(var b = 0; b < 3; b++){
+            if(bary['weights'][b] == 0.0) continue;
             bary['weights'][b] = bary['weights'][b] / sum_weight;
             var id = bary['ids'][b];
             this.rotateMpi(b, id);
-            // render each MPI
+            /*
+            if(this.scenes[b].children.length != 1){
+                console.error("detech: scene=> " + b+" mpi_id => "+id);
+                //console.log(bary['ids']);
+                //console.log(bary['weights'][b]);
+                console.log(this.mpis_ids);
+                console.log(bary['ids']);
+                console.log(bary['weights'][b]);
+            }*/
+            // render each MPI_scene
             this.composers[b].render();            
          }
          /*
@@ -441,27 +549,16 @@ class NeXviewerApp{
          bary['weights'][1] = 0.0;
          bary['weights'][2] = 0.0;
          */
-         //render the weight 3-combine mpi
+         //render the weight 3-combine mpi_scene
          this.blendPass.uniforms.weight1.value = bary['weights'][0];
          this.blendPass.uniforms.weight2.value = bary['weights'][1];
          this.blendPass.uniforms.weight3.value = bary['weights'][2];
          this.blendComposer.render();
     }
     precompile(){
-        return; //TODO: NEED TO BRINGBACK PRECOMPILE ON ACTUAL BUILD
         var num_mpi = this.textures["num"]["mpi"].length;
         for(var i = 0; i < 3; i++){
             this.renderer.compile(this.scenes[i], this.camera);
-        }
-        for(var i = 0; i < 3; i++){
-            if(i > 0){
-                this.mpis[i].group.removeFromParent();
-                this.scenes[i].add(this.mpis[i].group);
-            }
-        }
-        for(var i = 3; i < num_mpi; i++){
-            this.mpis[i].group.clear();
-            this.mpis[i].group.removeFromParent();
         }        
     }
     render(){  
@@ -726,6 +823,7 @@ $(document).ready(function() {
         })
         
     }).fail(function(err){
+        console.error(err);
         error_dialogue("<b>404:</b> Scene \""+params.scene+"\" doesn't not found");
     })
 });

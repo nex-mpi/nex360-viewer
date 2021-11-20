@@ -32,13 +32,14 @@ vec3 getViewingDirection()
     return viewing;
 }
 
-vec3 getBasisLookup()
+vec2 getBasisLookup()
 {
     vec3 viewing = getViewingDirection();
     viewing.yz = -viewing.yz; // since we train in OpenCV convension, we need to flip yz to keep viewing direction as the same.
     viewing =  basis_align * viewing;
     viewing = (viewing + 1.0) / 2.0; //shift value from [-1.0, 1.0] to [0.0, 1.0]
-    return viewing.xyz;
+    viewing.y = 1.0 - viewing.y; //need to flip y axis, since threejs/webgl flip the image
+    return viewing.xy;
 }
 float getAlpha()
 {
@@ -68,17 +69,17 @@ vec3 getIllumination()
     k[4] = texture2D(mpi_k4, vUv);
     k[5] = texture2D(mpi_k5, vUv);
 
+    //scale coeff from [0,1] to [-1,1];
     for(int i = 0; i < 6; i++) k[i] = k[i] * 2.0 - 1.0;
         
     // lookup basis
-    vec3 viewingLookup = getBasisLookup();
-    //viewiningLookup is in [-1.0, 1.0] need to scale to [0.0, 1.0]
+    vec2 viewingLookup = getBasisLookup();
+    b[0] = texture2D(mpi_b0, viewingLookup);
+    b[1] = texture2D(mpi_b1, viewingLookup);
 
-    b[0] = texture2D(mpi_b0, viewingLookup.xy);
-    b[1] = texture2D(mpi_b1, viewingLookup.xy);
-
+    //scale basis from [0,1] tp [-1,1]
     for(int i = 0; i < 2; i++) b[i] = b[i] * 2.0 - 1.0;
-
+    
     //for loop here will allocate ton of memory, this one is a lot smaller.
     o[0] = b[0][0] * k[0][0] + b[0][1] * k[0][3] + b[0][2] * k[1][2] + b[0][3] * k[2][1] + b[1][0] * k[3][0] + b[1][1] * k[3][3] + b[1][2] * k[4][2] + b[1][3] * k[5][1];
     o[1] = b[0][0] * k[0][1] + b[0][1] * k[1][0] + b[0][2] * k[1][3] + b[0][3] * k[2][2] + b[1][0] * k[3][1] + b[1][1] * k[4][0] + b[1][2] * k[4][3] + b[1][3] * k[5][2];
@@ -96,7 +97,8 @@ void main(void)
     if(color.a > 0.0){ 
         color.rgb = getBaseColor();
         color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
-        //color.rgb = clamp((getIllumination() + 1.0 / 2.0), 0.0, 1.0);
+        //color.rgb = clamp((getIllumination() + 1.0) / 2.0, 0.0, 1.0);
+        //color.rgb = clamp(getIllumination(), 0.0, 1.0);
     }
     gl_FragColor= color;    
 }
