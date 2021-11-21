@@ -31,7 +31,10 @@ class NeXviewerApp{
                 this.cfg.compose_mode = 'bary';
             } else{
                 this.cfg.compose_mode = 'linear';
+                $('#sel-plane-combine option[value=bary]').hide();
             }
+            // update ui selector
+            $('#sel-plane-combine option[value='+this.cfg.compose_mode+']').attr('selected','selected');
         }
         if (typeof this.cfg.controls_type === 'undefined'){
             this.cfg.controls_type = "manual";
@@ -60,9 +63,11 @@ class NeXviewerApp{
                 "z": this.cfg.c2ws[mpi_id][2][3]
             };
         }
-        //prepare barycentric
-        this.cfg['bary']['scaler'] = new THREE.Vector2(this.cfg['bary']['width'] - 1.0, this.cfg['bary']['height']-1.0);
-        this.cfg['bary']['anchor'] = -1;
+        if(this.cfg.hasOwnProperty('delaunay') && this.cfg['delaunay']){
+            //prepare barycentric
+            this.cfg['bary']['scaler'] = new THREE.Vector2(this.cfg['bary']['width'] - 1.0, this.cfg['bary']['height']-1.0);
+            this.cfg['bary']['anchor'] = -1;
+        }
         //prepare zip.js
         var zip_workers =  ["../../scripts/thrid-party/z-worker.js"]
         zip.configure({ workerScripts: { deflate: zip_workers, inflate: zip_workers} });
@@ -383,7 +388,7 @@ class NeXviewerApp{
                     c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
                     c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
                 );
-                c2w.premultiply(nerf2glmat)
+                //c2w.premultiply(nerf2glmat)
                 this.matrices['nerf_c2ws'].push(c2w);
                 this.matrices['nerf_w2cs'].push(c2w.clone().invert());
             }
@@ -425,20 +430,21 @@ class NeXviewerApp{
         return output;
     }
     composeFrame(){
+        console.log(this.cfg.compose_mode);
         if(this.cfg.compose_mode == 'closet'){
             this.composeSingle();
         } else if (this.cfg.compose_mode == 'linear'){
             this.composeLinear();
-        } else {
+        } else if(this.cfg.compose_mode == 'bary'){
             this.composeBary();
+        }else{
+            console.error('composeFrame failed to use cfg.compose_mode == ' + this.cfg.compose_mode);
         }
     }
     composeSingle(){
-        var bary = this.bary();
-        var id = 0;
-        if(bary.weights[1] >= bary.weights[0] && bary.weights[1] >= bary.weights[2]) id = 1;
-        if(bary.weights[2] >= bary.weights[0] && bary.weights[2] >= bary.weights[1]) id = 2;
-        id = bary['ids'][id];
+        var linear = this.linear();
+        //linear is sorted by distance, so it garantee that first on the list is always cloest MPI.
+        var id = linear['ids'][0];
         this.write_camera_location([id]);
         this.rotateMpi(0, id);
         this.composers[0].render();  
@@ -660,7 +666,6 @@ class NeXviewerApp{
     }
     predictFrame(){
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
-        console.log('predicting... frame:'+this.cfg.nerf_path.frame_id)
         this.stats.begin();
         this.nextNerfCameraPose();
         if(this.cfg.texture_ext == "npy"){
@@ -680,7 +685,7 @@ class NeXviewerApp{
             this.captured_frame.push(pixelData);
         }
 
-        if(this.cfg.nerf_path.frame_id > this.matrices['nerf_c2ws'].length){
+        if(this.cfg.nerf_path.frame_id >= this.matrices['nerf_c2ws'].length){
             return this.predictSave();
         }else{
             this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
@@ -700,7 +705,7 @@ class NeXviewerApp{
                 //create zip and download 
                 var zipWriter = new zip.ZipWriter(new zip.BlobWriter("application/zip"));
                 for(var i = 0; i < this.captured_frame.length; i++){
-                    $("#rendering-text").text("adding files to zip... "+i+" / "+this.captured_frame.length);
+                    $("#rendering-text").html("<b>adding files to zip...</b> "+i+" / "+this.captured_frame.length);
                     var fileName = (''+i).padStart(4, '0') + '.png'
                     await zipWriter.add(
                         fileName, 
