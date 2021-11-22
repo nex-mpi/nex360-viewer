@@ -388,7 +388,7 @@ class NeXviewerApp{
                     c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
                     c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
                 );
-                //c2w.premultiply(nerf2glmat)
+                if(this.cfg.dataset_type == 'blender') c2w.premultiply(nerf2glmat);
                 this.matrices['nerf_c2ws'].push(c2w);
                 this.matrices['nerf_w2cs'].push(c2w.clone().invert());
             }
@@ -430,7 +430,6 @@ class NeXviewerApp{
         return output;
     }
     composeFrame(){
-        console.log(this.cfg.compose_mode);
         if(this.cfg.compose_mode == 'closet'){
             this.composeSingle();
         } else if (this.cfg.compose_mode == 'linear'){
@@ -693,43 +692,37 @@ class NeXviewerApp{
 
     }
     async predictSave(){
-        if(this.cfg.texture_ext == 'npy'){
+        try {
+            $("#rendering-state-predicting").hide();
+            $("#rendering-text").show();
+            //create zip and download 
+            var zipWriter = new zip.ZipWriter(new zip.BlobWriter("application/zip"));
+            var zipFileOption =  {bufferedWrite: true}
             for(var i = 0; i < this.captured_frame.length; i++){
-                this.captured_frame[i] = Array.from(this.captured_frame[i])
-            }
-            export2json({"images": this.captured_frame}, 'rendered.json'); 
-        }else{
-            try {
-                $("#rendering-state-predicting").hide();
-                $("#rendering-text").show();
-                //create zip and download 
-                var zipWriter = new zip.ZipWriter(new zip.BlobWriter("application/zip"));
-                for(var i = 0; i < this.captured_frame.length; i++){
-                    $("#rendering-text").html("<b>adding files to zip...</b> "+i+" / "+this.captured_frame.length);
-                    var fileName = (''+i).padStart(4, '0') + '.png'
-                    await zipWriter.add(
-                        fileName, 
-                        new zip.Data64URIReader(this.captured_frame[i]), 
-                        {
-                            bufferedWrite: true,
-                        }
-                    );
+                $("#rendering-text").html("<b>adding files to zip...</b> "+i+" / "+this.captured_frame.length);
+                var fileName = (''+i).padStart(4, '0');                
+                if(this.cfg.texture_ext == 'npy'){
+                    fileName += '.json';
+                    await zipWriter.add(fileName, new zip.TextReader(Array.from(this.captured_frame[i])), zipFileOption);
+                }else{
+                    fileName += '.png';
+                    await zipWriter.add(fileName, new zip.Data64URIReader(this.captured_frame[i]), zipFileOption);
                 }
-                //download zip from blob
-                const blobData = await zipWriter.close({
-                    "onprogress": function(step_id, num_step){
-                        $("#rendering-text").text("compressing zip "+step_id+" / "+num_step);
-                    }
-                })
-                const blobURL = URL.createObjectURL(blobData);
-                const anchor = document.createElement("a");
-				const clickEvent = new MouseEvent("click");
-				anchor.href = blobURL;
-				anchor.download = "nex360.zip";
-				anchor.dispatchEvent(clickEvent);
-            } catch (error) {
-                alert(error);
             }
+            const blobData = await zipWriter.close({
+                "onprogress": function(step_id, num_step){
+                    $("#rendering-text").text("compressing zip "+step_id+" / "+num_step);
+                }
+            })
+            //download zip from blob
+            const blobURL = URL.createObjectURL(blobData);
+            const anchor = document.createElement("a");
+            const clickEvent = new MouseEvent("click");
+            anchor.href = blobURL;
+            anchor.download = "nex360-"+this.cfg.dataset_type+"-"+this.cfg.scene+".zip";
+            anchor.dispatchEvent(clickEvent);
+        } catch (error) {
+            alert(error);
         }
         this.captured_frame = [];
         this.cfg.nerf_path.frame_id = 0;
@@ -827,6 +820,7 @@ $(document).ready(function() {
                 );
             }
         }
+        window.cfg = cfg;
         cfg['scene_url'] = params.scene;
         //check if use denaulay 
         var  has_delaunay =  cfg.hasOwnProperty('delaunay') && cfg['delaunay'];
@@ -843,7 +837,7 @@ $(document).ready(function() {
                     waiting_return();
                 });
                 npy.load(params.scene+'/bary_weight.npy', function(data){
-                    cfg['bary']['weight'] = bary_weight;
+                    cfg['bary']['weights'] = data.data;
                     waiting_return();
                 });
             }else{

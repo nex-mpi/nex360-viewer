@@ -16,6 +16,7 @@ class NumpyTextureLoader{
         texture.generateMipmaps = false;
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
+        texture.flipY = true; //flip to keep same behavior
         this.npy.load(filePath, function(data){
             texture.image.data = data.data;
             texture.image.height = data.shape[0];
