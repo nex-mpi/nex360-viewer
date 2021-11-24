@@ -2,8 +2,9 @@ var planeFragmentShader =  `
 precision highp float;
 precision highp sampler2D;
 
-#define EPSILON 0.000000001
-#define BASIS_WIDTH 800.0
+#define COLORMODE_FULL 0
+#define COLORMODE_DEPTH 1
+#define COLORMODE_BASE 2
 
 uniform sampler2D mpi_a;
 uniform sampler2D mpi_c;
@@ -19,7 +20,9 @@ uniform sampler2D mpi_k4;
 uniform sampler2D mpi_k5;
 
 uniform int alpha_ch;
+uniform int color_mode;
 uniform float plane_id;
+uniform float num_planes;
 uniform mat3 basis_align;
 
 varying vec2 vUv;
@@ -91,12 +94,18 @@ vec3 getIllumination()
 void main(void)
 {
     vec4 color = vec4(0.0,0.0,0.0,0.0);
-    color.a = getAlpha();
+    color.a = getAlpha(); 
     // reduce texture call when no alpha to display
-   
     if(color.a > 0.0){ 
-        color.rgb = getBaseColor();
-        color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
+        if(color_mode == COLORMODE_DEPTH){
+            float depth_color = (plane_id / num_planes);
+            color.rgb = vec3(depth_color,depth_color,depth_color);
+        }else if(color_mode == COLORMODE_BASE){
+            color.rgb = getBaseColor();
+        }else{
+            color.rgb = getBaseColor();
+            color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
+        }
         //color.rgb = clamp((getIllumination() + 1.0) / 2.0, 0.0, 1.0);
         //color.rgb = clamp(getIllumination(), 0.0, 1.0);
     }

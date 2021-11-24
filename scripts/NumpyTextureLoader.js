@@ -1,7 +1,9 @@
 // custom implement NumpyTextureLoader
 class NumpyTextureLoader{
-    constructor(){
+    constructor(format=format){
         this.npy = new npyjs();
+        if(!format) format = THREE.RGBAFormat;
+        this.format = format;
     }
     load(filePath, callback){   
         var self = this;     
@@ -9,14 +11,13 @@ class NumpyTextureLoader{
             new Float32Array(4 * 1 * 1), 
             1, 
             1, 
-            THREE.RGBAFormat, 
+            this.format, 
             THREE.FloatType
         );
-        texture.internalFormat = 'RGBA32F';
+        texture.flipY = true; //flip to keep same behavior
         texture.generateMipmaps = false;
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
-        texture.flipY = true; //flip to keep same behavior
         this.npy.load(filePath, function(data){
             texture.image.data = data.data;
             texture.image.height = data.shape[0];

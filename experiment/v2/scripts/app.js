@@ -42,6 +42,9 @@ class NeXviewerApp{
         if (typeof this.cfg.is_predicting === 'undefined'){
             this.cfg.is_predicting = false;
         }
+        if (typeof this.cfg.freeze_mpi === 'undefined'){
+            this.cfg.freeze_mpi = false;
+        }
         if (typeof this.cfg.is_smaa === 'undefined'){
             this.cfg.is_smaa = false;
         }
@@ -54,9 +57,13 @@ class NeXviewerApp{
         if (typeof this.cfg.background_color === 'undefined'){
             this.background_color = "white";
         }
+        if (typeof this.cfg.save_json === 'undefined'){
+            //save output file as json instead of png file
+            this.cfg.save_json = this.cfg.texture_ext == 'npy';
+        }
         if (typeof this.cfg.camera_position === 'undefined'){
             //set default camera location to first MPI location
-            var mpi_id = 27;
+            var mpi_id = 25;
             this.cfg.camera_position = {
                 "x": this.cfg.c2ws[mpi_id][0][3],
                 "y": this.cfg.c2ws[mpi_id][1][3],
@@ -67,6 +74,9 @@ class NeXviewerApp{
             //prepare barycentric
             this.cfg['bary']['scaler'] = new THREE.Vector2(this.cfg['bary']['width'] - 1.0, this.cfg['bary']['height']-1.0);
             this.cfg['bary']['anchor'] = -1;
+        }
+        if(this.cfg.freeze_mpi){
+            $('#btn-freeze-mpi').addClass("is-primary");
         }
         //prepare zip.js
         var zip_workers =  ["../../scripts/thrid-party/z-worker.js"]
@@ -149,7 +159,7 @@ class NeXviewerApp{
             }
         }
         this.blendComposerTarget = undefined;
-        if(this.cfg.texture_ext == 'npy'){
+        if(this.cfg.save_json){
             this.blendComposerTarget = new THREE.WebGLRenderTarget(targetWidth, targetHeight, {
                 minFilter: THREE.LinearFilter,
                 magFilter: THREE.LinearFilter,
@@ -215,6 +225,7 @@ class NeXviewerApp{
         }
         var fov_width_tan = 0.5 * this.cfg['width']  / this.cfg['focal']; 
         var fov_height_tan = 0.5 * this.cfg['height']  / this.cfg['focal'];
+        num_mpis = 30;
         for(var mpiId = 0; mpiId < num_mpis; mpiId++) 
         {
             var plane_width_ratio = ((this.cfg['width'] / 2.0) + this.cfg['offset'][mpiId]) / (this.cfg['width']  / 2.0);
@@ -238,6 +249,8 @@ class NeXviewerApp{
                     uniforms: {   
                         alpha_ch: {value: i % 4},
                         plane_id: {value: i},
+                        num_planes: {value: this.cfg['planes'][mpiId].length},
+                        color_mode: {value: 0},
                         basis_align: {value: basis_align},
                         mpi_a: { type: "t", value: this.textures[mpiId]['alpha'][Math.floor(i/4)]},
                         mpi_b0: { type: "t", value: this.textures[mpiId]['basis'][0]},
@@ -273,12 +286,15 @@ class NeXviewerApp{
         //TODO: REMOVE when debug
         var self = this;
         var num_mpis = this.cfg.c2ws.length;
+        
+        //DEBUGGING PURPOSE ONLY!;
         /*
-        var num_mpis = 1;
+        num_mpis = 1;
         this.cfg.compose_mode = 'closet';
         this.composers[0].renderToScreen = true;
         this.blendComposer.renderToScreen = false;
         */
+        
         //count number of files to load.
         var num_files = {'total': 0, 'mpi':[]};
         for(let i = 0; i < num_mpis; i++){
@@ -295,8 +311,10 @@ class NeXviewerApp{
         var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
         var alphaLoader = texloader;
+        var colorLoader = texloader;
         if(this.cfg.texture_ext == 'npy'){
-            alphaLoader = new THREE.NumpyTextureLoader();
+            alphaLoader = new THREE.NumpyTextureLoader(THREE.RGBAFormat);
+            colorLoader = new THREE.NumpyTextureLoader(THREE.RGBFormat);
         }
         var self = this;
         var progressbarUpdate = function(){
@@ -330,11 +348,11 @@ class NeXviewerApp{
             var mpi_pad_id = String(mpiId).padStart(2, '0');
             // load alpha/basis/color texture
             ['alpha', 'basis', 'color'].forEach(function(keyname){
+                var loader = (keyname == 'color') ? colorLoader : alphaLoader;
                 for(var j=0; j < num_files['mpi'][mpiId][keyname]; j++){
                     var layer_id = String(j).padStart(2, '0')
                     var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_"+shortkey[keyname]+layer_id+"."+self.cfg.texture_ext;
-                    var texture = alphaLoader.load(url, mpiTextureCallback)
-                    self.textures[mpiId][keyname].push(texture);
+                    self.textures[mpiId][keyname].push(loader.load(url, mpiTextureCallback));
                 }
             })
             // load coefficent texture
@@ -403,6 +421,7 @@ class NeXviewerApp{
         this.stats.end();
     }
     rotateMpi(scene_id, mpi_id){
+        if(self.cfg.freeze_mpi) return ; //do not rotate if freeze mpi
         var prev_id = this.mpis_ids[scene_id];
         if(prev_id == mpi_id && this.scenes[scene_id].children.length== 1) return ; // do not update if no change
         //clear scene
@@ -479,16 +498,44 @@ class NeXviewerApp{
         var c =  (cam_radius * cam_radius) - (mpi_radius * mpi_radius);
         var vec_size = -b - Math.sqrt((b*b) - c);
         var projected_cam = position.clone().addScaledVector(direction, vec_size);
+        /*
+        console.log("==========");
+        console.log("direction")
+        console.log(direction.clone())
+        console.log(direction.clone().length());
+        console.log("b");
+        console.log(b);
+        console.log("c");
+        console.log(c);
+        console.log("vec_size")
+        console.log(vec_size)
+        console.log("camMatrx");
+        console.log(this.camera.matrixWorld);
+        console.log("position")
+        console.log(position);
+        console.log("projected_cam");
+        console.log(projected_cam)
+        console.log("mpi_radius")
+        console.log(mpi_radius)
+        console.log("project_radius")
+        console.log(projected_cam.length());
+        */
         return projected_cam;
     }
     linear(){
         //return weights and ids same as bary function
+        if(this.cfg.freeze_mpi && this.linear_data) return this.linear_data;
         var projected_cam = this.projectCamToRing();
+        localStorage.setItem('projected_camera_location',JSON.stringify({
+            'x': projected_cam.x, 
+            'y': projected_cam.y,
+            'z': projected_cam.z
+        }));
         var distances = []
         for(var i=0; i < this.cfg['c2ws'].length; i++){
             var c2w = this.cfg['c2ws'][i];
             var distance = new THREE.Vector3(c2w[0][3], c2w[1][3], c2w[2][3])
-            distance.sub(projected_cam)
+            distance.sub(projected_cam.clone())
             distances.push({'id': i, 'distance': distance.length()});
         }
         var mpi_inds = distances.sort(function(a,b){
@@ -497,14 +544,15 @@ class NeXviewerApp{
         var w0 = mpi_inds[1]['distance'];
         var w1 = mpi_inds[0]['distance'];
         var w_sum = w0 + w1;
-        return {
+        this.linear_data = {
             'ids': [mpi_inds[0]['id'], mpi_inds[1]['id']],
             'weights': [w0 / w_sum, w1 / w_sum],
-        };
+        }
+        return this.linear_data;
     }
     composeLinear(){
        var linear = this.linear();
-       this.write_camera_location(linear['ids']);
+        this.write_camera_location(linear['ids']);
        for(var b = 0; b < 2; b++){
            this.rotateMpi(b, linear['ids'][b]);
            this.composers[b].render();  
@@ -574,6 +622,16 @@ class NeXviewerApp{
         this.animate();
     }
     bary(){
+        /*
+        if(this.cfg.is_predicting && this.cfg.nerf_path.barycentric !== undefined){
+            // use mpi weights from precompute file instead.
+            var fid = this.cfg.nerf_path.frame_id;
+            return {
+                "ids": this.cfg.nerf_path.barycentric.ids[fid], 
+                "weights": this.cfg.nerf_path.barycentric.weights[fid],
+            };
+        }
+        */
         var cam_loc = this.camera.position.clone();
         // convert to opencv converntion
         cam_loc.y = cam_loc.y * -1;
@@ -581,7 +639,7 @@ class NeXviewerApp{
         var stereo_loc = this.sterographicProjection(cam_loc.normalize());
         var anchor = this.getBaryAnchor(stereo_loc);
         this.writeBaryAnchor(anchor);
-        if(anchor == this.anchor && this.bary_data) return this.bary_data;
+        if(this.cfg.freeze_mpi || (anchor == this.anchor && this.bary_data)) return this.bary_data;
         this.anchor = anchor;
         var ids = [], weights = [];
         for(var i = 0; i < 3; i++){
@@ -647,6 +705,16 @@ class NeXviewerApp{
                 self.composers[0].renderToScreen = false;
             }
         });
+        $("#sel-color-mode").change(function(e){
+            var color_val = 0;
+            if(this.value == "depth")  color_val = 1;
+            if(this.value == "basecolor") color_val = 2;
+            for(var i = 0; i < self.cfg.planes.length; i++){
+                for(var j = 0; j < self.cfg.planes[i].length; j++){
+                    self.materials[i][j].uniforms.color_mode.value = color_val;
+                }
+            }
+        });
         $("#sel-control-type").change(function(e){
             //reset camera rotation
             self.cfg.controls_type = this.value;        
@@ -662,12 +730,21 @@ class NeXviewerApp{
             self.cfg.nerf_path.frame_id = 0;
             self.predictFrame();
         });
+        $("#btn-freeze-mpi").click(function(e){
+            self.cfg.freeze_mpi = !self.cfg.freeze_mpi
+            if(self.cfg.freeze_mpi){
+                $("#btn-freeze-mpi").addClass('is-primary');
+            }else{
+                $("#btn-freeze-mpi").removeClass('is-primary');
+            }
+        })
     }
     predictFrame(){
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         this.stats.begin();
         this.nextNerfCameraPose();
-        if(this.cfg.texture_ext == "npy"){
+        this.cfg.is_predicting = true;
+        if(this.cfg.save_json){
             //save raw float32 output from webgl
             this.composeFrame(); //render the image to canvas
             const blendBuffer = this.blendComposer.writeBuffer
@@ -675,6 +752,8 @@ class NeXviewerApp{
             // re-rendered to  texture to save a file. Should change to render only 1 time and save to file
             this.blendComposer.renderToScreen = false;
             this.composeFrame();  
+            this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, blendBuffer.width, blendBuffer.height, rawPixelData);
+            console.log(rawPixelData);
             this.blendComposer.renderToScreen = true;
             this.captured_frame.push(rawPixelData);
         }else{
@@ -692,6 +771,7 @@ class NeXviewerApp{
 
     }
     async predictSave(){
+        this.cfg.is_predicting = false;
         try {
             $("#rendering-state-predicting").hide();
             $("#rendering-text").show();
@@ -701,9 +781,10 @@ class NeXviewerApp{
             for(var i = 0; i < this.captured_frame.length; i++){
                 $("#rendering-text").html("<b>adding files to zip...</b> "+i+" / "+this.captured_frame.length);
                 var fileName = (''+i).padStart(4, '0');                
-                if(this.cfg.texture_ext == 'npy'){
+                if(this.cfg.save_json){
                     fileName += '.json';
-                    await zipWriter.add(fileName, new zip.TextReader(Array.from(this.captured_frame[i])), zipFileOption);
+                    var text = JSON.stringify(Array.from(this.captured_frame[i]));
+                    await zipWriter.add(fileName, new zip.TextReader(text, zipFileOption));
                 }else{
                     fileName += '.png';
                     await zipWriter.add(fileName, new zip.Data64URIReader(this.captured_frame[i]), zipFileOption);
@@ -801,6 +882,7 @@ $(document).ready(function() {
     }
     //first seek for config.js
     $.getJSON(params.scene+"/config.json").done(function(cfg){
+        if(cfg['test_file'] === undefined) cfg['test_file'] = "transforms_test.json";
         var need_return = 1;
         var count_return = 0;
         var waiting_return = function(){
@@ -855,7 +937,7 @@ $(document).ready(function() {
                 });
             }
         }
-        $.getJSON(params.scene+"/transforms_test.json").done(function(transforms){
+        $.getJSON(params.scene+"/"+cfg['test_file']).done(function(transforms){
             transforms.frame_id = 0;
             cfg['nerf_path'] = transforms;
         }).always(function(){

@@ -11,7 +11,7 @@ class NeXworld{
         var ratio = window.innerWidth / window.innerHeight
         this.previous_mpi = [0,0,0];
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.1, 1000 );
-        this.camera.up.set( 0, 0, 1 );
+        this.camera.up.set( 0, 1, 0 );
         this.renderer = new THREE.WebGLRenderer({ alpha: true }); 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         this.renderer.setSize( window.innerWidth, window.innerHeight );
@@ -21,11 +21,12 @@ class NeXworld{
         //add grid
         var gridGround = new THREE.GridHelper( 10, 30,0x777777, 0x777777 );
         this.scene.add(gridGround);
-        gridGround.rotation.x = Math.PI / 2;
+        //gridGround.rotation.x = Math.PI / 2;
       
         // BUILD A LEGO
         const originBox = new THREE.BoxGeometry(0.65, 1.2, 0.01);
         const originMat = new THREE.MeshBasicMaterial( { color: 0xcdba92, side: THREE.DoubleSide} );
+        /*
         var lego_group = new THREE.Group();
         lego_group.add(new THREE.Mesh( originBox, originMat ))
         var lego_mainbox = new THREE.Mesh( new THREE.BoxGeometry(0.4, 0.8, 0.6), new THREE.MeshBasicMaterial( { color: 0xf6c924, side: THREE.DoubleSide} ) )
@@ -37,10 +38,13 @@ class NeXworld{
         lego_pickup.position.z = 0.6;
         lego_group.add(lego_pickup);
         this.scene.add(lego_group);
+        */
 
-        this.virtual_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0x00ffff, side: THREE.DoubleSide} ) )
+        this.virtual_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0x00ffff, side: THREE.DoubleSide} ) );
+        this.projected_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide} ) );
         this.virtual_camera.position.z = 4.0;
         this.scene.add(this.virtual_camera);
+        this.scene.add(this.projected_camera);
         this.init_texture();
         // load texture;
         this.camera.position.z = 20; // TODO: support proper position        
@@ -94,7 +98,7 @@ $(document).ready(function() {
     const urlSearchParams = new URLSearchParams(window.location.search);
     const params = Object.fromEntries(urlSearchParams.entries());
     if (typeof params.scene === 'undefined'){
-        params.scene = 'data/';
+        params.scene = 'data/lego_v2';
     }
     
     
@@ -108,6 +112,13 @@ $(document).ready(function() {
                 this.app.virtual_camera.position.x = camera_location.x;
                 this.app.virtual_camera.position.y = camera_location.y;
                 this.app.virtual_camera.position.z = camera_location.z;
+            }
+            var projected_location = localStorage.getItem('projected_camera_location');
+            if(projected_location != null){
+                projected_location = JSON.parse(projected_location);
+                this.app.projected_camera.position.x = projected_location.x;
+                this.app.projected_camera.position.y = projected_location.y;
+                this.app.projected_camera.position.z = projected_location.z;
             }
             var bary_address = localStorage.getItem('bary_address');
             if(bary_address != null){
