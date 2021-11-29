@@ -29,31 +29,38 @@
             <div id="threejs-wrapper">
                 <!-- Threejs canvas here-->
             </div>
-            <div id="control-bar" style="display: none;">                
-                <div class="select" >
-                    <select id="sel-control-type">
-                        <option value="manual">🖱️ Manual control</option>
-                        <option value="nerf">🚜 Test path </option>
-                    </select>
+            <div id="control-bar" style="display: none;">
+                <div>
+                    <div class="select" >
+                        <select id="sel-control-type">
+                            <option value="manual">🖱️ Manual control</option>
+                            <option value="nerf">🚜 Test path </option>
+                        </select>
+                    </div>
+                    <div class="select">
+                        <select id="sel-plane-combine">
+                            <option value="bary">߷ Barycentric</option>
+                            <option value="linear">↔️ Linear</option>
+                            <option value="closet">1️⃣ Closet MPI </option>
+                        </select>
+                    </div>
+                    <div class="select">
+                        <select id="sel-color-mode">
+                            <option value="fullcolor">🎨 Full color</option>
+                            <option value="basecolor">🕳 Base color</option>
+                            <!--<option value="frontcolor">🔦 Front-view color</option>-->
+                            <option value="depth">📏 Depth</option>
+                        </select>
+                    </div>
+                    <a class="button" href="#" id="btn-freeze-mpi"> ❄️ Freeze MPI </a>
+                    <a class="button" target="_blank" href="../../world.html"> 🌐 World visualization</a>
+                    <a class="button" href="#" id="btn-predict"> 📷 Predict </a>
                 </div>
-                <div class="select">
-                    <select id="sel-plane-combine">
-                        <option value="bary">߷ Barycentric</option>
-                        <option value="linear">↔️ Linear</option>
-                        <option value="closet">1️⃣ Closet MPI </option>
-                    </select>
-                </div>
-                <div class="select">
-                    <select id="sel-color-mode">
-                        <option value="fullcolor">🎨 Full color</option>
-                        <option value="basecolor">🕳 Base color</option>
-                        <!--<option value="frontcolor">🔦 Front-view color</option>-->
-                        <option value="depth">📏 Depth</option>
-                    </select>
-                </div>
-                <a class="button" href="#" id="btn-freeze-mpi"> ❄️ Freeze MPI </a>
-                <a class="button" target="_blank" href="../../world.html"> 🌐 World visualization</a>
-                <a class="button" href="#" id="btn-predict"> 📷 Predict </a>
+                <div>
+                    <input type="range" id="bar-ground" min="-4.0" max="4.0" value="-4.0" step="0.01">
+                    <span id="bar-ground-val">-4.0</span>
+                </div>                
+                
             </div>
             <div id="rendering-status-warpper" class="notification is-info is-light"  style="display: none;">
                 <div id="rendering-state-predicting" style="display: none;">

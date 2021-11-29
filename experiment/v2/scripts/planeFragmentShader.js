@@ -21,17 +21,46 @@ uniform sampler2D mpi_k5;
 
 uniform int alpha_ch;
 uniform int color_mode;
+uniform float ground;
 uniform float plane_id;
+uniform float basis_angle_limit; //clamp basis with a spherical angle
+uniform float camera_radius;
 uniform float num_planes;
 uniform mat3 basis_align;
 
 varying vec2 vUv;
 varying vec3 vCoord;    
 
+vec3 clampViewingDirection(vec3 direction)
+{
+    //convert from cartesian coordinates to spherical coordinate 
+    vec3 viewing = -direction; //need to flip because viewing angle is upside-down sphere
+    float x = viewing.x;
+    float y = viewing.z; //OpenGL is y-up while we would like to use z-up to match wiki version.
+    float z = viewing.y; 
+    // find phi and theta, note: we use wiki convention here
+    // @see https://en.wikipedia.org/wiki/Spherical_coordinate_system
+    float phi = atan(y,x);
+    float theta = atan(sqrt(x*x+y*y),z);
+    theta = clamp(theta, 0.0, basis_angle_limit);
+    //convert back to cartesian coordinate
+    x = cos(phi) * sin(theta);
+    y = sin(phi) * cos(theta);
+    z = cos(theta);
+    // convert from z-up to y up
+    viewing.x = x;
+    viewing.y = z;
+    viewing.z = y; 
+    //flip it back to upside down
+    direction = -viewing;
+    return direction;
+}
+
 vec3 getViewingDirection()
 {
     // viewing direction is a direction from point in 3D to camera postion
     vec3 viewing = normalize(vCoord - cameraPosition);
+    viewing = clampViewingDirection(viewing);
     return viewing;
 }
 
@@ -90,24 +119,38 @@ vec3 getIllumination()
     return o;
 }
 
+vec3 getColor(){
+    vec3 color = vec3(0.0,0.0,0.0);
+    if(color_mode == COLORMODE_DEPTH){
+        float depth_color = (plane_id / num_planes);
+        color = vec3(depth_color,depth_color,depth_color);
+    }else if(color_mode == COLORMODE_BASE){
+        color = getBaseColor();
+    }else{
+        color = getBaseColor();
+        color = clamp(color.rgb + getIllumination(), 0.0, 1.0);
+    }
+    return color;
+}
+
+bool isBelowTheGround()
+{
+    return vCoord.y < ground;
+}
 
 void main(void)
 {
     vec4 color = vec4(0.0,0.0,0.0,0.0);
     color.a = getAlpha(); 
+
+    //filter out ground_plane
+    if(isBelowTheGround()){
+        color.a = 0.0;
+    }
+
     // reduce texture call when no alpha to display
     if(color.a > 0.0){ 
-        if(color_mode == COLORMODE_DEPTH){
-            float depth_color = (plane_id / num_planes);
-            color.rgb = vec3(depth_color,depth_color,depth_color);
-        }else if(color_mode == COLORMODE_BASE){
-            color.rgb = getBaseColor();
-        }else{
-            color.rgb = getBaseColor();
-            color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
-        }
-        //color.rgb = clamp((getIllumination() + 1.0) / 2.0, 0.0, 1.0);
-        //color.rgb = clamp(getIllumination(), 0.0, 1.0);
+        color.rgb = getColor();
     }
     gl_FragColor= color;    
 }

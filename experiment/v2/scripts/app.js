@@ -4,7 +4,6 @@ class NeXviewerApp{
         this.initThreejs();
         this.initMatrices();
         var self = this;
-        
         this.loadTexture(function(){           
             self.initScene();
             if(typeof(callback) === typeof(Function)){
@@ -70,6 +69,21 @@ class NeXviewerApp{
                 "z": this.cfg.c2ws[mpi_id][2][3]
             };
         }
+        if (typeof this.cfg.camera_radius === 'undefined'){
+            //set default camera location to first MPI location
+            var mpi_id = 0;
+            var cam = new THREE.Vector3(
+                this.cfg.c2ws[mpi_id][0][3],
+                this.cfg.c2ws[mpi_id][1][3],
+                this.cfg.c2ws[mpi_id][2][3]
+            )
+            this.cfg.camera_radius = cam.length();
+            console.log("CALCULRATE CAM_RADIUS")
+            console.log(this.cfg.camera_radius)
+        }
+        if(typeof this.cfg.basis_angle_limit === 'undefined'){
+            this.cfg.basis_angle_limit = Math.PI * 0.5;
+        }
         if(this.cfg.hasOwnProperty('delaunay') && this.cfg['delaunay']){
             //prepare barycentric
             this.cfg['bary']['scaler'] = new THREE.Vector2(this.cfg['bary']['width'] - 1.0, this.cfg['bary']['height']-1.0);
@@ -120,8 +134,10 @@ class NeXviewerApp{
             error_dialogue("<b>WEBGL_CONTEXT_LOSS:</b> Your machine doesn't have enough memory to render this scene");
         }, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
+        
         this.controls.enableZoom = false;
         this.controls.enablePan = false;
+        
         //this.renderer.setPixelRatio( window.devicePixelRatio ); //enable to render on HI-DPI screen
         this.renderer.setSize( targetWidth, targetHeight);
         if(this.background_color == 'black'){
@@ -132,7 +148,7 @@ class NeXviewerApp{
         this.scenes = [];
         for(var i = 0; i < 3; i++){
             this.scenes.push(new THREE.Scene());
-        }
+        }        
         // inital composer for barycentric combine 3 mpis
         // TODO: implement combine pass 
         // https://github.com/mrdoob/three.js/blob/dev/examples/webgl_postprocessing_unreal_bloom_selective.html
@@ -250,7 +266,10 @@ class NeXviewerApp{
                         alpha_ch: {value: i % 4},
                         plane_id: {value: i},
                         num_planes: {value: this.cfg['planes'][mpiId].length},
+                        camera_radius: {value: this.cfg.camera_radius},
                         color_mode: {value: 0},
+                        ground: {value: -999999999.0},
+                        basis_angle_limit: {value: this.cfg.basis_angle_limit},
                         basis_align: {value: basis_align},
                         mpi_a: { type: "t", value: this.textures[mpiId]['alpha'][Math.floor(i/4)]},
                         mpi_b0: { type: "t", value: this.textures[mpiId]['basis'][0]},
@@ -498,28 +517,6 @@ class NeXviewerApp{
         var c =  (cam_radius * cam_radius) - (mpi_radius * mpi_radius);
         var vec_size = -b - Math.sqrt((b*b) - c);
         var projected_cam = position.clone().addScaledVector(direction, vec_size);
-        /*
-        console.log("==========");
-        console.log("direction")
-        console.log(direction.clone())
-        console.log(direction.clone().length());
-        console.log("b");
-        console.log(b);
-        console.log("c");
-        console.log(c);
-        console.log("vec_size")
-        console.log(vec_size)
-        console.log("camMatrx");
-        console.log(this.camera.matrixWorld);
-        console.log("position")
-        console.log(position);
-        console.log("projected_cam");
-        console.log(projected_cam)
-        console.log("mpi_radius")
-        console.log(mpi_radius)
-        console.log("project_radius")
-        console.log(projected_cam.length());
-        */
         return projected_cam;
     }
     linear(){
@@ -703,6 +700,15 @@ class NeXviewerApp{
                 self.composers[0].renderToScreen = true;
             }else{
                 self.composers[0].renderToScreen = false;
+            }
+        });
+        $("#bar-ground").change(function(e){
+            var val = this.value;
+            $("#bar-ground-val").text(val);
+            for(var i = 0; i < self.cfg.planes.length; i++){
+                for(var j = 0; j < self.cfg.planes[i].length; j++){
+                    self.materials[i][j].uniforms.ground.value = val;
+                }
             }
         });
         $("#sel-color-mode").change(function(e){

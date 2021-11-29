@@ -137,6 +137,10 @@ $(document).ready(function() {
         }
         onStorageChange();  
         window.addEventListener("storage", onStorageChange, false);
-    });
+    }); 
+    $.getJSON(params.scene + '/transforms_train.json',function(){
+        
+
+    }).fail(function(){})
     
 });
