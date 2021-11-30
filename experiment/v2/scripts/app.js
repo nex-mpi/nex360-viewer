@@ -78,8 +78,6 @@ class NeXviewerApp{
                 this.cfg.c2ws[mpi_id][2][3]
             )
             this.cfg.camera_radius = cam.length();
-            console.log("CALCULRATE CAM_RADIUS")
-            console.log(this.cfg.camera_radius)
         }
         if(typeof this.cfg.basis_angle_limit === 'undefined'){
             this.cfg.basis_angle_limit = Math.PI * 0.5;
@@ -135,9 +133,11 @@ class NeXviewerApp{
         }, false);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement );
         
+        /*
         this.controls.enableZoom = false;
         this.controls.enablePan = false;
-        
+        */
+
         //this.renderer.setPixelRatio( window.devicePixelRatio ); //enable to render on HI-DPI screen
         this.renderer.setSize( targetWidth, targetHeight);
         if(this.background_color == 'black'){
@@ -535,9 +535,10 @@ class NeXviewerApp{
             distance.sub(projected_cam.clone())
             distances.push({'id': i, 'distance': distance.length()});
         }
-        var mpi_inds = distances.sort(function(a,b){
-            return a['distance'] > b['distance'];
+        distances.sort(function(a,b){
+            return a['distance'] - b['distance'];
         })
+        var mpi_inds = distances;
         var w0 = mpi_inds[1]['distance'];
         var w1 = mpi_inds[0]['distance'];
         var w_sum = w0 + w1;
@@ -545,6 +546,7 @@ class NeXviewerApp{
             'ids': [mpi_inds[0]['id'], mpi_inds[1]['id']],
             'weights': [w0 / w_sum, w1 / w_sum],
         }
+        console.log(this.linear_data);
         return this.linear_data;
     }
     composeLinear(){
@@ -715,6 +717,7 @@ class NeXviewerApp{
             var color_val = 0;
             if(this.value == "depth")  color_val = 1;
             if(this.value == "basecolor") color_val = 2;
+            if(this.value == "illumination") color_val = 3;
             for(var i = 0; i < self.cfg.planes.length; i++){
                 for(var j = 0; j < self.cfg.planes[i].length; j++){
                     self.materials[i][j].uniforms.color_mode.value = color_val;

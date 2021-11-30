@@ -5,6 +5,7 @@ precision highp sampler2D;
 #define COLORMODE_FULL 0
 #define COLORMODE_DEPTH 1
 #define COLORMODE_BASE 2
+#define COLORMODE_ILLUMINATION 3
 
 uniform sampler2D mpi_a;
 uniform sampler2D mpi_c;
@@ -30,6 +31,7 @@ uniform mat3 basis_align;
 
 varying vec2 vUv;
 varying vec3 vCoord;    
+
 
 vec3 clampViewingDirection(vec3 direction)
 {
@@ -126,6 +128,8 @@ vec3 getColor(){
         color = vec3(depth_color,depth_color,depth_color);
     }else if(color_mode == COLORMODE_BASE){
         color = getBaseColor();
+    }else if(color_mode == COLORMODE_ILLUMINATION){
+        color = clamp((getIllumination() + 1.0) / 2.0, 0.0, 1.0);
     }else{
         color = getBaseColor();
         color = clamp(color.rgb + getIllumination(), 0.0, 1.0);
