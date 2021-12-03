@@ -125,8 +125,19 @@ class NeXviewerApp{
         });
         var glContext = this.renderer.getContext();
         var maxTextureSize = glContext.getParameter(glContext.MAX_TEXTURE_SIZE);
-        var maxImageUnit = glContext.getParameter(glContext.MAX_TEXTURE_IMAGE_UNITS)
-        if(!this.renderer.capabilities.isWebGL2) error_dialogue("<b>WEBGL2:</b> This page require WebGL2 to be render.");
+        var maxImageUnit = glContext.getParameter(glContext.MAX_TEXTURE_IMAGE_UNITS);
+        //check texture size
+        for(var i = 0; i < this.cfg.offset.length; i++){
+            var nh = targetHeight + (this.cfg.offset[i] * 2);
+            var nw = targetWidth + (this.cfg.offset[i] * 2)
+            if(nh > maxTextureSize) return error_dialogue("<b>Texture:</b> MPI texture height ("+nh+"px) exceed your device texture ("+maxTextureSize+"px) support. ");
+            if(nw > maxTextureSize) return error_dialogue("<b>Texture:</b> MPI texture width ("+nw+"px) exceed your device texture ("+maxTextureSize+"px) support. ");
+        }
+        //check compression support
+        if(this.cfg.texture_ext == "dds" && !glContext.getExtension("WEBGL_compressed_texture_s3tc")){
+            return error_dialogue("<b>WebGL:</b> your device doesn't support WEBGL_compressed_texture_s3tc for rendering DDS file format");
+        }   
+        if(!this.renderer.capabilities.isWebGL2) return error_dialogue("<b>WEBGL2:</b> This page require WebGL2 to be render.");
         this.renderer.context.canvas.addEventListener("webglcontextlost", function(event){
             event.preventDefault();
             error_dialogue("<b>WEBGL_CONTEXT_LOSS:</b> Your machine doesn't have enough memory to render this scene");
@@ -297,6 +308,19 @@ class NeXviewerApp{
         for(var i = 0; i < 3; i++){
             this.scenes[i].add(this.mpis[this.mpis_ids[i]].group);
         }
+    }
+    uvFlipY( geometry ) {
+
+        const uv = geometry.attributes.uv;
+
+        for ( let i = 0; i < uv.count; i ++ ) {
+
+            uv.setY( i, 1 - uv.getY( i ) );
+
+        }
+
+        return geometry;
+
     }   
     loadTexture(callback){
         //document.getElementById('progress-texture-wrapper').style.display = 'block';
@@ -329,11 +353,41 @@ class NeXviewerApp{
         this.textures = {'num': num_files}
         var loaded_texture = 0;
         var texloader = new THREE.TextureLoader();
-        var alphaLoader = texloader;
-        var colorLoader = texloader;
+        var dataLoader = {
+            'alpha': texloader,
+            'basis': texloader,
+            'color': texloader,
+            'coeff': texloader,
+        }
         if(this.cfg.texture_ext == 'npy'){
-            alphaLoader = new THREE.NumpyTextureLoader(THREE.RGBAFormat);
-            colorLoader = new THREE.NumpyTextureLoader(THREE.RGBFormat);
+            var rgbaLoader = new THREE.NumpyTextureLoader(THREE.RGBAFormat);
+            var rgbLoader = new THREE.NumpyTextureLoader(THREE.RGBFormat);
+            dataLoader = {
+                'alpha': rgbaLoader,
+                'basis': rgbaLoader,
+                'color': rgbLoader,
+                'coeff': rgbaLoader,
+            }
+        }
+        if(this.cfg.texture_ext == 'ktx2'){
+            var ktx2Loader = new THREE.KTX2Loader();
+            ktx2Loader.setTranscoderPath('../../scripts/thrid-party/ktx2/');
+            ktx2Loader.detectSupport(this.renderer);
+            dataLoader = {
+                'alpha': ktx2Loader,
+                'basis': ktx2Loader,
+                'color': ktx2Loader,
+                'coeff': ktx2Loader,
+            }
+        }
+        if(this.cfg.texture_ext == 'dds'){
+            var ddsLoader = new THREE.DDSLoader();
+            dataLoader = {
+                'alpha': ddsLoader,
+                'basis': texloader,
+                'color': ddsLoader,
+                'coeff': ddsLoader,
+            }
         }
         var self = this;
         var progressbarUpdate = function(){
@@ -367,10 +421,12 @@ class NeXviewerApp{
             var mpi_pad_id = String(mpiId).padStart(2, '0');
             // load alpha/basis/color texture
             ['alpha', 'basis', 'color'].forEach(function(keyname){
-                var loader = (keyname == 'color') ? colorLoader : alphaLoader;
+                var loader = dataLoader[keyname];
+                var ext_name = self.cfg.texture_ext;
+                if(keyname == 'basis' && self.cfg.texture_ext == 'dds') ext_name = "png";
                 for(var j=0; j < num_files['mpi'][mpiId][keyname]; j++){
                     var layer_id = String(j).padStart(2, '0')
-                    var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_"+shortkey[keyname]+layer_id+"."+self.cfg.texture_ext;
+                    var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_"+shortkey[keyname]+layer_id+"."+ext_name;
                     self.textures[mpiId][keyname].push(loader.load(url, mpiTextureCallback));
                 }
             })
@@ -380,7 +436,7 @@ class NeXviewerApp{
                 var layer_id = String(j).padStart(2, '0')
                 for(var k = 0; k < num_files['mpi'][mpiId]['coeff']; k++){
                     var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_k"+layer_id+"_"+k+"."+self.cfg.texture_ext;
-                    var texture = alphaLoader.load(url, mpiTextureCallback);
+                    var texture = dataLoader['coeff'].load(url, mpiTextureCallback);
                     layerTextures.push(texture);
                 }
                 self.textures[mpiId]['coeff'].push(layerTextures);
@@ -487,20 +543,32 @@ class NeXviewerApp{
         this.composers[0].render();  
     }
     projectCamToRing(){
+        // we need location of the camera on the
         var mpi00_cam = new THREE.Vector3(this.cfg.c2ws[0][0][3], this.cfg.c2ws[0][1][3], this.cfg.c2ws[0][2][3]);
         var position = this.camera.position.clone();
         var mpi_radius = mpi00_cam.length();
         var cam_radius = position.length();
+       /*
         var focal = this.cfg.focal;
         var cy = this.cfg.height / 2.0;
         var cx = this.cfg.width / 2.0
-        //note that, need to flip y,z axis.
         var intrinsic = new THREE.Matrix3();
         intrinsic.set(
             focal,   0.0,  cx,
-              0.0, -focal,  cy,
-              0.0,   0.0, -1.0
-        )
+              0.0, focal,  cy,
+              0.0,   0.0, 1.0
+        )     
+        var direction = new THREE.Vector3(cx, cy, 1.0); 
+        direction.applyMatrix3(intrinsic.clone().invert());
+        direction.applyMatrix3(rot);
+        //solve for (position + vec_size * direction)**2 = (mpi_radius) ** 2
+        //using quadratic formular @see https://en.wikipedia.org/wiki/Quadratic_formula
+        var b = (position.x * direction.x) + (position.y * direction.y) + (position.z * direction.z);
+        var c =  (cam_radius * cam_radius) - (mpi_radius * mpi_radius);
+        var vec_size = -b - Math.sqrt((b*b) - c);
+        var projected_cam = position.clone().addScaledVector(direction, vec_size);
+        projected_cam.multiplyScalar(-1); //need to flip to match OpenGL 
+        */
         var c2w = this.camera.matrixWorld.clone().elements;
         var rot = new THREE.Matrix3();
         rot.set(
@@ -508,8 +576,7 @@ class NeXviewerApp{
             c2w[1], c2w[5], c2w[9],
             c2w[2], c2w[6], c2w[10]           
         );
-        var direction = new THREE.Vector3(cx, cy, 1.0); 
-        direction.applyMatrix3(intrinsic.clone().invert());
+        var direction = new THREE.Vector3(0, 0, -1.0); 
         direction.applyMatrix3(rot);
         //solve for (position + vec_size * direction)**2 = (mpi_radius) ** 2
         //using quadratic formular @see https://en.wikipedia.org/wiki/Quadratic_formula
@@ -546,7 +613,6 @@ class NeXviewerApp{
             'ids': [mpi_inds[0]['id'], mpi_inds[1]['id']],
             'weights': [w0 / w_sum, w1 / w_sum],
         }
-        console.log(this.linear_data);
         return this.linear_data;
     }
     composeLinear(){
@@ -661,7 +727,7 @@ class NeXviewerApp{
         v.multiply(this.cfg['bary']['scaler']);
         v.round();
         // if we draw png to canvas first it will become 4 channel
-        var num_channel = (this.cfg.texture_ext == 'png') ? 4 : 3;
+        var num_channel = (this.cfg.texture_ext == 'npy') ? 3 : 4;
         return (v.y * this.cfg['bary']['width'] + v.x) * num_channel;
     }
     writeBaryAnchor(anchor){ 
@@ -894,7 +960,7 @@ $(document).ready(function() {
         if(cfg['test_file'] === undefined) cfg['test_file'] = "transforms_test.json";
         var need_return = 1;
         var count_return = 0;
-        var waiting_return = function(){
+        var waiting_return = function(){            
             count_return++;
             if(count_return >= need_return){
                 window.app = new NeXviewerApp(cfg,
