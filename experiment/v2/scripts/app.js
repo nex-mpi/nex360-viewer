@@ -784,6 +784,7 @@ class NeXviewerApp{
             if(this.value == "depth")  color_val = 1;
             if(this.value == "basecolor") color_val = 2;
             if(this.value == "illumination") color_val = 3;
+            if(this.value == "black") color_val = 4;
             for(var i = 0; i < self.cfg.planes.length; i++){
                 for(var j = 0; j < self.cfg.planes[i].length; j++){
                     self.materials[i][j].uniforms.color_mode.value = color_val;
