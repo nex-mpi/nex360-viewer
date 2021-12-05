@@ -30,7 +30,7 @@ uniform float camera_radius;
 uniform float num_planes;
 uniform mat3 basis_align;
 
-varying vec2 vUv;
+varying vec2 vMpiTextureLoc;
 varying vec3 vCoord;    
 
 
@@ -78,13 +78,13 @@ vec2 getBasisLookup()
 }
 float getAlpha()
 {
-    vec4 alphas = texture2D(mpi_a, vUv);
+    vec4 alphas = texture2D(mpi_a, vMpiTextureLoc);
     return alphas[alpha_ch];
 }
 
 vec3 getBaseColor()
 {
-    vec4 baseColor = texture2D(mpi_c, vUv);
+    vec4 baseColor = texture2D(mpi_c, vMpiTextureLoc);
     return baseColor.rgb;
 }
 
@@ -97,12 +97,12 @@ vec3 getIllumination()
     vec4 k[6], b[2];
 
     // lookup coeff
-    k[0] = texture2D(mpi_k0, vUv);
-    k[1] = texture2D(mpi_k1, vUv);
-    k[2] = texture2D(mpi_k2, vUv);
-    k[3] = texture2D(mpi_k3, vUv);
-    k[4] = texture2D(mpi_k4, vUv);
-    k[5] = texture2D(mpi_k5, vUv);
+    k[0] = texture2D(mpi_k0, vMpiTextureLoc);
+    k[1] = texture2D(mpi_k1, vMpiTextureLoc);
+    k[2] = texture2D(mpi_k2, vMpiTextureLoc);
+    k[3] = texture2D(mpi_k3, vMpiTextureLoc);
+    k[4] = texture2D(mpi_k4, vMpiTextureLoc);
+    k[5] = texture2D(mpi_k5, vMpiTextureLoc);
 
     //scale coeff from [0,1] to [-1,1];
     for(int i = 0; i < 6; i++) k[i] = k[i] * 2.0 - 1.0;

@@ -257,6 +257,10 @@ class NeXviewerApp{
         {
             var plane_width_ratio = ((this.cfg['width'] / 2.0) + this.cfg['offset'][mpiId]) / (this.cfg['width']  / 2.0);
             var plane_height_ratio = ((this.cfg['height']  / 2.0) + this.cfg['offset'][mpiId]) / (this.cfg['height']  / 2.0);   
+            var mpi_width = Math.floor(this.cfg['width'] + (this.cfg['offset'][mpiId] * 2));
+            var mpi_height = Math.floor(this.cfg['height'] + (this.cfg['offset'][mpiId] * 2));
+            var mpi_ratio_width = mpi_width / (mpi_width + (mpi_width) % 4);
+            var mpi_ratio_height = mpi_height / (mpi_height + (mpi_height) % 4);
             this.mpis[mpiId] = {
                 "planes": [],
                 "group": new THREE.Group()
@@ -276,6 +280,8 @@ class NeXviewerApp{
                     uniforms: {   
                         alpha_ch: {value: i % 4},
                         plane_id: {value: i},
+                        mpi_ratio_width: {value: mpi_ratio_width},
+                        mpi_ratio_height: {value: mpi_ratio_height},
                         num_planes: {value: this.cfg['planes'][mpiId].length},
                         camera_radius: {value: this.cfg.camera_radius},
                         color_mode: {value: 0},
