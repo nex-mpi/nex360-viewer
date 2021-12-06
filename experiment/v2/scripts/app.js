@@ -943,6 +943,7 @@ function load_image_pixel(url, callback){
     var canvas = document.createElement('canvas');
     var context  = canvas.getContext('2d');
     var img = new Image();
+    img.crossOrigin = "Anonymous";
     img.src = url;
     img.onload = function(){
         canvas.width = this.width;
