@@ -111,7 +111,7 @@ class NeXviewerApp{
         this.cfg.fov_degree = fov_radian * 180 / Math.PI
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.0001, 1000 );
         this.camera.filmGauge = this.cfg['width'];
-        this.camera.up.set( 0, 0, 1 );
+        //this.camera.up.set( 0, 0, 1 );
 
         // WebGL renderer config
         this.renderer = new THREE.WebGLRenderer({
@@ -903,9 +903,9 @@ class NeXviewerApp{
             //reset camera position   
             this.camera.position.set(0,0,0);
             this.camera.rotation.set(0,0,0);           
-            this.camera.up.set( 0, 1, 0 );                
+            //this.camera.up.set( 0, 1, 0 );                
         }else{
-            this.camera.up.set( 0, 1, 0 );
+            //this.camera.up.set( 0, 1, 0 );
             this.camera.position.set(
                 this.cfg.camera_position.x,
                 this.cfg.camera_position.y,
@@ -1028,6 +1028,12 @@ $(document).ready(function() {
         
     }).fail(function(err){
         console.error(err);
-        error_dialogue("<b>404:</b> Scene \""+params.scene+"\" doesn't not found");
+        if(err.status == 404){
+            error_dialogue("<b>404:</b> Scene \""+params.scene+"\" doesn't not found");
+        }else if(err.status == 0){
+            error_dialogue("<b>Code 0:</b> Did you enable <a target='_blank' href='https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS'>CORS<a>?");
+        }else{
+            error_dialogue("<b>\""+err.status+"\":</b> Server side error");
+        }
     })
 });
