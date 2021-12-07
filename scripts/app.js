@@ -938,8 +938,9 @@ $(document).ready(function() {
     const urlSearchParams = new URLSearchParams(window.location.search);
     const params = Object.fromEntries(urlSearchParams.entries());
     if (typeof params.scene === 'undefined'){
-        params.scene = '../../data/lego_v2/';
+        params.scene = 'https://pureexe.github.io/lego-dds';
     }
+    $("#btn-world").attr("href", "world.html?scene="+params.scene);
     //first seek for config.js
     $.getJSON(params.scene+"/config.json").done(function(cfg){
         if(cfg['test_file'] === undefined) cfg['test_file'] = "transforms_test.json";
