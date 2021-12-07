@@ -1,147 +1,152 @@
 var planeFragmentShader =  `
 precision highp float;
+precision highp sampler2D;
 
-#define EPSILON 0.000000001
+#define COLORMODE_FULL 0
+#define COLORMODE_DEPTH 1
+#define COLORMODE_BASE 2
+#define COLORMODE_ILLUMINATION 3
+#define COLORMODE_BLACK 4
 
 uniform sampler2D mpi_a;
 uniform sampler2D mpi_c;
+
+//TODO: CODEGEN - basis and koeff
+uniform sampler2D mpi_b0;
+uniform sampler2D mpi_b1;
+uniform sampler2D mpi_k0;
 uniform sampler2D mpi_k1;
 uniform sampler2D mpi_k2;
 uniform sampler2D mpi_k3;
 uniform sampler2D mpi_k4;
 uniform sampler2D mpi_k5;
-uniform sampler2D mpi_k6;
-uniform sampler2D mpi_b0_p;
-uniform sampler2D mpi_b1_p;
-uniform sampler2D mpi_b0_n;
-uniform sampler2D mpi_b1_n;
 
 uniform int alpha_ch;
+uniform int color_mode;
+uniform float plane_id;
+uniform float basis_angle_limit; //clamp basis with a spherical angle
+uniform float camera_radius;
+uniform float num_planes;
+uniform mat3 basis_align;
 
-varying vec2 vUv;
-varying vec3 vCoord; 
+varying vec2 vMpiTextureLoc;
+varying vec3 vCoord;    
 
-vec2 stereographicProjection(vec3 point)
+
+vec3 clampViewingDirection(vec3 direction)
 {
-    vec2 ret;
-    ret.x = point.x / (1.0 - point.z + EPSILON);
-    ret.y = point.y / (1.0 - point.z + EPSILON);
-    return ret;
-}   
+    //convert from cartesian coordinates to spherical coordinate 
+    vec3 viewing = -direction; //need to flip because viewing angle is upside-down sphere
+    float x = viewing.x;
+    float y = viewing.z; //OpenGL is y-up while we would like to use z-up to match wiki version.
+    float z = viewing.y; 
+    // find phi and theta, note: we use wiki convention here
+    // @see https://en.wikipedia.org/wiki/Spherical_coordinate_system
+    float phi = atan(y,x);
+    float theta = atan(sqrt(x*x+y*y),z);
+    theta = clamp(theta, 0.0, basis_angle_limit);
+    //convert back to cartesian coordinate
+    x = cos(phi) * sin(theta);
+    y = sin(phi) * cos(theta);
+    z = cos(theta);
+    // convert from z-up to y up
+    viewing.x = x;
+    viewing.y = z;
+    viewing.z = y; 
+    //flip it back to upside down
+    direction = -viewing;
+    return direction;
+}
 
-vec3 getViewingAngle()
+vec3 getViewingDirection()
 {
     // viewing direction is a direction from point in 3D to camera postion
     vec3 viewing = normalize(vCoord - cameraPosition);
+    viewing = clampViewingDirection(viewing);
     return viewing;
 }
 
+vec2 getBasisLookup()
+{
+    vec3 viewing = getViewingDirection();
+    viewing.yz = -viewing.yz; // since we train in OpenCV convension, we need to flip yz to keep viewing direction as the same.
+    viewing =  basis_align * viewing;
+    viewing = (viewing + 1.0) / 2.0; //shift value from [-1.0, 1.0] to [0.0, 1.0]
+    viewing.y = 1.0 - viewing.y; //need to flip y axis, since threejs/webgl flip the image
+    return viewing.xy;
+}
 float getAlpha()
 {
-    vec4 alphas = texture2D(mpi_a, vUv);
+    vec4 alphas = texture2D(mpi_a, vMpiTextureLoc);
     return alphas[alpha_ch];
 }
 
 vec3 getBaseColor()
 {
-    vec4 baseColor = texture2D(mpi_c, vUv);
+    vec4 baseColor = texture2D(mpi_c, vMpiTextureLoc);
     return baseColor.rgb;
 }
 
 vec3 getIllumination()
 {    
-    // coeffiecent and basis in eq3 of NeX paper.
-    vec3 k1,k2,k3,k4,k5,k6,k7,k8;
-    float h1,h2,h3,h4,h5,h6,h7,h8;
+    //Due to GLSL3 specification, we might need to have weird implementation each getIllumination manuelly
+    //TODO: convert this code to javascript automatic code generation
+    vec3 o = vec3(0.0, 0.0, 0.0);
 
-    //query data from coeffient
-    vec4 q1,q2,q3,q4,q5,q6;    
+    vec4 k[6], b[2];
+
+    // lookup coeff
+    k[0] = texture2D(mpi_k0, vMpiTextureLoc);
+    k[1] = texture2D(mpi_k1, vMpiTextureLoc);
+    k[2] = texture2D(mpi_k2, vMpiTextureLoc);
+    k[3] = texture2D(mpi_k3, vMpiTextureLoc);
+    k[4] = texture2D(mpi_k4, vMpiTextureLoc);
+    k[5] = texture2D(mpi_k5, vMpiTextureLoc);
+
+    //scale coeff from [0,1] to [-1,1];
+    for(int i = 0; i < 6; i++) k[i] = k[i] * 2.0 - 1.0;
+        
+    // lookup basis
+    vec2 viewingLookup = getBasisLookup();
+    b[0] = texture2D(mpi_b0, viewingLookup);
+    b[1] = texture2D(mpi_b1, viewingLookup);
+
+    //scale basis from [0,1] tp [-1,1]
+    for(int i = 0; i < 2; i++) b[i] = b[i] * 2.0 - 1.0;
     
-    q1 = texture2D(mpi_k1, vUv);
-    q2 = texture2D(mpi_k2, vUv);
-    q3 = texture2D(mpi_k3, vUv);
-    q4 = texture2D(mpi_k4, vUv);
-    q5 = texture2D(mpi_k5, vUv);
-    q6 = texture2D(mpi_k6, vUv);
-
-
-    //rescale coefficient to [-1, 1]
-    q1 = (q1 * 2.0) - 1.0;
-    q2 = (q2 * 2.0) - 1.0;
-    q3 = (q3 * 2.0) - 1.0;
-    q4 = (q4 * 2.0) - 1.0;
-    q5 = (q5 * 2.0) - 1.0;
-    q6 = (q6 * 2.0) - 1.0;
-
-    // make 6 query into 8 coefficent
-    k1 = q1.rgb;
-    k2 = q2.rgb;
-    k3 = q3.rgb;
-    k4 = q4.rgb;
-    k5 = q5.rgb;
-    k6 = q6.rgb;
-    k7.r = q1.a;
-    k7.g = q2.a;
-    k7.b = q3.a;
-    k8.r = q4.a;
-    k8.g = q5.a;
-    k8.b = q6.a;
-
-    //get basis
-    vec4 qb0, qb1;
-    vec3 viewing = getViewingAngle();
-    
-    vec3 queryViewing = viewing;
-    if(viewing.z > 0.0){
-        // z should be alway negative when query to prevent  inf in sterographic
-        queryViewing.z = queryViewing.z * -1.0;
-    }
-    vec2 basisUvStero = stereographicProjection(queryViewing);
-    vec2 basisUv;
-    basisUv = basisUvStero;
-    basisUv = (basisUv + 1.0) / 2.0; //rescale to [0,1];
-    basisUv = clamp(basisUv, 0.0, 1.0); //sterographic is unbound.
-    // basisUv.y = basisUv.y * -1.0; //uv_map y-axis is up, but in mpi_b Y is down
-    if(viewing.z <= 0.0){
-        qb0 = texture2D(mpi_b0_n, basisUv);
-        qb1 = texture2D(mpi_b1_n, basisUv);        
-    }else{
-        qb0 = texture2D(mpi_b1_p, basisUv);
-        qb1 = texture2D(mpi_b1_p, basisUv);
-    }
-
-    // rescale basis to -1,1
-    qb0 = (qb0 * 2.0) - 1.0;
-    qb1 = (qb1 * 2.0) - 1.0;
-    
-
-    // make 2 query into 8 basis
-    float b1,b2,b3,b4,b5,b6,b7,b8;
-    b1 = qb0.r;
-    b2 = qb0.g;
-    b3 = qb0.b;
-    b4 = qb0.a;
-    b5 = qb1.r;
-    b6 = qb1.g;
-    b7 = qb1.b;
-    b8 = qb1.a;
-    
-
-    //combine coefficent and basisto get illumination
-    vec3 illumination = vec3(0.0, 0.0, 0.0);
-    illumination = (k1*b1) + (k2*b2) + (b3*b3) + (k4 * b4) + (k5 * b5) + (k6 * b6) + (k7 * b7) + (k8 * b8);
-    return illumination;
+    //for loop here will allocate ton of memory, this one is a lot smaller.
+    o[0] = b[0][0] * k[0][0] + b[0][1] * k[0][3] + b[0][2] * k[1][2] + b[0][3] * k[2][1] + b[1][0] * k[3][0] + b[1][1] * k[3][3] + b[1][2] * k[4][2] + b[1][3] * k[5][1];
+    o[1] = b[0][0] * k[0][1] + b[0][1] * k[1][0] + b[0][2] * k[1][3] + b[0][3] * k[2][2] + b[1][0] * k[3][1] + b[1][1] * k[4][0] + b[1][2] * k[4][3] + b[1][3] * k[5][2];
+    o[2] = b[0][0] * k[0][2] + b[0][1] * k[1][1] + b[0][2] * k[2][0] + b[0][3] * k[2][3] + b[1][0] * k[3][2] + b[1][1] * k[4][1] + b[1][2] * k[5][0] + b[1][3] * k[5][3];
+    return o;
 }
 
+vec3 getColor(){
+    vec3 color = vec3(0.0,0.0,0.0);
+    if(color_mode == COLORMODE_DEPTH){
+        float depth_color = (plane_id / num_planes);
+        color = vec3(depth_color,depth_color,depth_color);
+    }else if(color_mode == COLORMODE_BASE){
+        color = getBaseColor();
+    }else if(color_mode == COLORMODE_ILLUMINATION){
+        color = clamp((getIllumination() + 1.0) / 2.0, 0.0, 1.0);
+    }else if(color_mode == COLORMODE_BLACK){
+        color = vec3(0.0,0.0,0.0);
+    }else{
+        color = getBaseColor();
+        color = clamp(color.rgb + getIllumination(), 0.0, 1.0);
+    }
+    return color;
+}
 
 void main(void)
 {
     vec4 color = vec4(0.0,0.0,0.0,0.0);
-    color.a = getAlpha();
-    // reduce texture call when no alpha to display    
+    color.a = getAlpha(); 
+
+    // reduce texture call when no alpha to display
     if(color.a > 0.0){ 
-        color.rgb = getBaseColor();
-        color.rgb = clamp(color.rgb + getIllumination(), 0.0, 1.0);
+        color.rgb = getColor();
     }
     gl_FragColor= color;    
 }

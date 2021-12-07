@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="styles/bulma.min.css">
         <link rel="stylesheet" href="styles/app.css">
-        <title>NeX360 Viewer - nano</title>
+        <title>NeX360 Viewer</title>
     </head>
     <body>
         <div id='danger-modal' class="modal is-clipped">
@@ -16,6 +16,9 @@
             </div>
         </div>
         <div class="view-container">
+            <div id='progress-barycentric-wrapper' style="display: block;">
+                <b>Intializing renderer...</b>
+            </div>
             <div id='progress-texture-wrapper'>
                 <b>Loading textures:</b>
                 <div  class="progress-wrapper">
@@ -26,21 +29,35 @@
             <div id="threejs-wrapper">
                 <!-- Threejs canvas here-->
             </div>
-            <div id="control-bar" style="display: none;">                
-                <div class="select" >
-                    <select id="sel-control-type">
-                        <option value="manual">🖱️ Manual control</option>
-                        <option value="nerf">🚜 Nerf's test path </option>
-                    </select>
+            <div id="control-bar" style="display: none;">
+                <div>
+                    <div class="select" >
+                        <select id="sel-control-type">
+                            <option value="manual">🖱️ Manual control</option>
+                            <option value="nerf">🚜 Test path </option>
+                        </select>
+                    </div>
+                    <div class="select">
+                        <select id="sel-plane-combine">
+                            <option value="bary">߷ Barycentric</option>
+                            <option value="linear">↔️ Linear</option>
+                            <option value="closet">1️⃣ Closet MPI </option>
+                        </select>
+                    </div>
+                    <div class="select">
+                        <select id="sel-color-mode">
+                            <option value="fullcolor">🎨 Full color</option>
+                            <option value="basecolor">🕳 Base color</option>
+                            <!--<option value="frontcolor">🔦 Front-view color</option>-->
+                            <option value="illumination">🌞 Illumination</option>
+                            <option value="depth">📏 Depth</option>
+                            <option value="black">⚫ Black</option>
+                        </select>
+                    </div>
+                    <a class="button" href="#" id="btn-freeze-mpi"> ❄️ Freeze MPI </a>
+                    <a class="button" target="_blank" href="world.html"> 🌐 World visualization</a>
+                    <a class="button" href="#" id="btn-predict"> 📷 Predict </a>
                 </div>
-                <div class="select">
-                    <select id="sel-plane-combine">
-                        <option value="bary">߷ Barycentric</option>
-                        <option value="closet">1️⃣ Closet MPI </option>
-                    </select>
-                </div>
-                <a class="button" target="_blank" href="world.html"> 🌐 World visualization</a>
-                <a class="button" href="#" id="btn-predict"> 📷 Predict test path </a>
             </div>
             <div id="rendering-status-warpper" class="notification is-info is-light"  style="display: none;">
                 <div id="rendering-state-predicting" style="display: none;">
@@ -49,16 +66,23 @@
                 <div id="rendering-state-output"  style="display: none;">
                     <b>Saving...</b>
                 </div>
+                <div id="rendering-text"  style="display: none;"></div>
             </div>
         </div>
         <script src="scripts/thrid-party/jquery-3.6.0.min.js"></script>
-        <script src="scripts/thrid-party/three-r130.js"></script>
+        <script src="scripts/thrid-party/three-r134.js"></script>
         <script src="scripts/thrid-party/OrbitControls.js"></script>
         <script src="scripts/thrid-party/EffectComposer.js"></script>
+        <script src="scripts/thrid-party/SMAAShader.js"></script>
+        <script src="scripts/thrid-party/SMAAPass.js"></script>
+        <script src="scripts/thrid-party/WorkerPool.js"></script>
+        <script src="scripts/thrid-party/KTX2Loader.js"></script>
+        <script src="scripts/thrid-party/DDSLoader.js"></script>
         <script src="scripts/thrid-party/stats.js"></script>
         <script src="scripts/thrid-party/VRButton.js"></script>
         <script src="scripts/thrid-party/CCapture.all.min.js"></script>
         <script src="scripts/thrid-party/npy.js"></script>
+        <script src="scripts/thrid-party/zip.min.js"></script>
         <script src="scripts/NumpyTextureLoader.js"></script>
         <script src="scripts/planeVertexShader.js"></script>
         <script src="scripts/planeFragmentShader.js"></script>
