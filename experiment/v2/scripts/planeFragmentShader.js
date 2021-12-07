@@ -23,7 +23,6 @@ uniform sampler2D mpi_k5;
 
 uniform int alpha_ch;
 uniform int color_mode;
-uniform float ground;
 uniform float plane_id;
 uniform float basis_angle_limit; //clamp basis with a spherical angle
 uniform float camera_radius;
@@ -140,20 +139,10 @@ vec3 getColor(){
     return color;
 }
 
-bool isBelowTheGround()
-{
-    return vCoord.y < ground;
-}
-
 void main(void)
 {
     vec4 color = vec4(0.0,0.0,0.0,0.0);
     color.a = getAlpha(); 
-
-    //filter out ground_plane
-    if(isBelowTheGround()){
-        color.a = 0.0;
-    }
 
     // reduce texture call when no alpha to display
     if(color.a > 0.0){ 

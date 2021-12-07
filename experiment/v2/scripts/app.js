@@ -12,16 +12,6 @@ class NeXviewerApp{
         });
         
     }
-    simpleCube(owner){
-        //add simple cube to scene to make sure everything work
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
-        console.log(owner);
-        owner.cube = new THREE.Mesh( geometry, material );
-        owner.scenes[0].add(owner.cube)
-        owner.scenes[1].add(owner.cube)
-        owner.scenes[2].add(owner.cube)
-    }
     prepareConfig(cfg){
         this.cfg = cfg;
         //init configuration
@@ -111,7 +101,6 @@ class NeXviewerApp{
         this.cfg.fov_degree = fov_radian * 180 / Math.PI
         this.camera = new THREE.PerspectiveCamera(this.cfg.fov_degree, ratio, 0.0001, 1000 );
         this.camera.filmGauge = this.cfg['width'];
-        //this.camera.up.set( 0, 0, 1 );
 
         // WebGL renderer config
         this.renderer = new THREE.WebGLRenderer({
@@ -285,7 +274,6 @@ class NeXviewerApp{
                         num_planes: {value: this.cfg['planes'][mpiId].length},
                         camera_radius: {value: this.cfg.camera_radius},
                         color_mode: {value: 0},
-                        ground: {value: -999999999.0},
                         basis_angle_limit: {value: this.cfg.basis_angle_limit},
                         basis_align: {value: basis_align},
                         mpi_a: { type: "t", value: this.textures[mpiId]['alpha'][Math.floor(i/4)]},
@@ -776,15 +764,6 @@ class NeXviewerApp{
                 self.composers[0].renderToScreen = false;
             }
         });
-        $("#bar-ground").change(function(e){
-            var val = this.value;
-            $("#bar-ground-val").text(val);
-            for(var i = 0; i < self.cfg.planes.length; i++){
-                for(var j = 0; j < self.cfg.planes[i].length; j++){
-                    self.materials[i][j].uniforms.ground.value = val;
-                }
-            }
-        });
         $("#sel-color-mode").change(function(e){
             var color_val = 0;
             if(this.value == "depth")  color_val = 1;
@@ -903,9 +882,7 @@ class NeXviewerApp{
             //reset camera position   
             this.camera.position.set(0,0,0);
             this.camera.rotation.set(0,0,0);           
-            //this.camera.up.set( 0, 1, 0 );                
         }else{
-            //this.camera.up.set( 0, 1, 0 );
             this.camera.position.set(
                 this.cfg.camera_position.x,
                 this.cfg.camera_position.y,
