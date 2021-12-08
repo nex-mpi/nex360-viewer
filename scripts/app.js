@@ -81,7 +81,7 @@ class NeXviewerApp{
             $('#btn-freeze-mpi').addClass("is-primary");
         }
         //prepare zip.js
-        var zip_workers =  ["../../scripts/thrid-party/z-worker.js"]
+        var zip_workers =  ["scripts/thrid-party/z-worker.js"]
         zip.configure({ workerScripts: { deflate: zip_workers, inflate: zip_workers} });
     }
     initThreejs(){
