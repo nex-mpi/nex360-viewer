@@ -409,6 +409,9 @@ class NeXviewerApp{
             }
             progressbarUpdate();
         }  
+        var errorCallback = function(e){
+            error_dialogue("<b>Connection reset: </b> Please reload this page again")
+        }
         var loadMpis = function(mpiId){
             self.textures[mpiId] = {'alpha':[],'basis':[],'color':[], 'coeff': []};      
             var shortkey = {'alpha': 'a', 'basis': 'b', 'color': 'c', 'coeff': 'k'};
@@ -421,7 +424,7 @@ class NeXviewerApp{
                 for(var j=0; j < num_files['mpi'][mpiId][keyname]; j++){
                     var layer_id = String(j).padStart(2, '0')
                     var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_"+shortkey[keyname]+layer_id+"."+ext_name;
-                    self.textures[mpiId][keyname].push(loader.load(url, mpiTextureCallback));
+                    self.textures[mpiId][keyname].push(loader.load(url, mpiTextureCallback, undefined, errorCallback));
                 }
             })
             // load coefficent texture
@@ -430,7 +433,7 @@ class NeXviewerApp{
                 var layer_id = String(j).padStart(2, '0')
                 for(var k = 0; k < num_files['mpi'][mpiId]['coeff']; k++){
                     var url = self.cfg['scene_url']+"/mpi"+mpi_pad_id+"_k"+layer_id+"_"+k+"."+self.cfg.texture_ext;
-                    var texture = dataLoader['coeff'].load(url, mpiTextureCallback);
+                    var texture = dataLoader['coeff'].load(url, mpiTextureCallback, undefined,errorCallback);
                     layerTextures.push(texture);
                 }
                 self.textures[mpiId]['coeff'].push(layerTextures);
