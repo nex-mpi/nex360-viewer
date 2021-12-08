@@ -938,7 +938,8 @@ $(document).ready(function() {
     const urlSearchParams = new URLSearchParams(window.location.search);
     const params = Object.fromEntries(urlSearchParams.entries());
     if (typeof params.scene === 'undefined'){
-        params.scene = 'https://pureexe.github.io/lego-dds';
+        //params.scene = 'https://pureexe.github.io/lego-dds';
+        return error_dialogue("You must provide <b>?scene=</b> paramter in the URL.");
     }
     $("#btn-world").attr("href", "world.html?scene="+params.scene);
     //first seek for config.js
