@@ -410,7 +410,8 @@ class NeXviewerApp{
             progressbarUpdate();
         }  
         var errorCallback = function(e){
-            error_dialogue("<b>Connection reset: </b> Please reload this page again")
+            error_dialogue("<b>Connection reset: </b> Please reload this page again");
+            console.error(e);
         }
         var loadMpis = function(mpiId){
             self.textures[mpiId] = {'alpha':[],'basis':[],'color':[], 'coeff': []};      
