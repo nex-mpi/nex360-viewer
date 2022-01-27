@@ -21,6 +21,7 @@ class NeXviewerApp{
             } else{
                 this.cfg.compose_mode = 'linear';
                 $('#sel-plane-combine option[value=bary]').hide();
+                $('#sel-plane-combine option[value=mpi03]').hide();
             }
             // update ui selector
             $('#sel-plane-combine option[value='+this.cfg.compose_mode+']').attr('selected','selected');
@@ -522,8 +523,10 @@ class NeXviewerApp{
         return output;
     }
     composeFrame(){
-        if(this.cfg.compose_mode == 'closet'){
+        if(this.cfg.compose_mode == 'closet' ){
             this.composeSingle();
+        } else if (this.cfg.compose_mode == 'mpi01' || this.cfg.compose_mode == 'mpi02' || this.cfg.compose_mode == 'mpi03'){
+            this.composeSingleMPI(parseInt(this.cfg.compose_mode[this.cfg.compose_mode.length-1])-1);
         } else if (this.cfg.compose_mode == 'linear'){
             this.composeLinear();
         } else if(this.cfg.compose_mode == 'bary'){
@@ -532,6 +535,14 @@ class NeXviewerApp{
             console.error('composeFrame failed to use cfg.compose_mode == ' + this.cfg.compose_mode);
         }
     }
+    composeSingleMPI(mpi_id){
+        var has_delaunay =  this.cfg.hasOwnProperty('delaunay') && this.cfg['delaunay'];
+        var info = has_delaunay ? this.bary() : this.linear();
+        var id = info['ids'][mpi_id];
+        this.write_camera_location([id]);
+        this.rotateMpi(0, id);
+        this.composers[0].render();       
+     }
     composeSingle(){
         var linear = this.linear();
         //linear is sorted by distance, so it garantee that first on the list is always cloest MPI.
@@ -762,7 +773,7 @@ class NeXviewerApp{
         $("#control-bar").show();
         $("#sel-plane-combine").change(function(e){
             self.cfg.compose_mode = this.value;
-            if(this.value == "closet"){
+            if(this.value == "closet" || this.value == "mpi01" || this.value == "mpi02"  || this.value == "mpi03" ){
                 self.composers[0].renderToScreen = true;
             }else{
                 self.composers[0].renderToScreen = false;
@@ -805,33 +816,37 @@ class NeXviewerApp{
         })
     }
     predictFrame(){
+        var self = this;
         $("#rendering-count").text(this.cfg.nerf_path.frame_id + 1);
         this.stats.begin();
         this.nextNerfCameraPose();
         this.cfg.is_predicting = true;
         if(this.cfg.save_json){
+            this.composeFrame(); //render the image to canvas [again]
             //save raw float32 output from webgl
-            this.composeFrame(); //render the image to canvas
             const blendBuffer = this.blendComposer.writeBuffer
             var rawPixelData = new Float32Array(blendBuffer.width * blendBuffer.height*4);
             // re-rendered to  texture to save a file. Should change to render only 1 time and save to file
             this.blendComposer.renderToScreen = false;
+            this.renderer.autoClear = false;
             this.composeFrame();  
             this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, blendBuffer.width, blendBuffer.height, rawPixelData);
-            console.log(rawPixelData);
-            this.blendComposer.renderToScreen = true;
             this.captured_frame.push(rawPixelData);
+            console.log(rawPixelData);
+            this.renderer.clear(true,true,true);
+            this.blendComposer.renderToScreen = true;
+            this.renderer.autoClear = true;
         }else{
             //capture png from canvas
             this.composeFrame();
             var pixelData = this.renderer.domElement.toDataURL();
             this.captured_frame.push(pixelData);
         }
-
-        if(this.cfg.nerf_path.frame_id >= this.matrices['nerf_c2ws'].length){
-            return this.predictSave();
+        this.stats.end();
+        if(self.cfg.nerf_path.frame_id >= self.matrices['nerf_c2ws'].length){
+            return self.predictSave();
         }else{
-            this.requestFrame = window.requestAnimationFrame(this.predictFrame.bind(this));
+            self.requestFrame = window.requestAnimationFrame(self.predictFrame.bind(self));
         }
 
     }
