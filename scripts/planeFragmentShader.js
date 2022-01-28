@@ -40,15 +40,18 @@ vec3 clampViewingDirection(vec3 direction)
     float x = viewing.x;
     float y = viewing.z; //OpenGL is y-up while we would like to use z-up to match wiki version.
     float z = viewing.y; 
+    
     // find phi and theta, note: we use wiki convention here
-    // @see https://en.wikipedia.org/wiki/Spherical_coordinate_system
-    float phi = atan(y,x);
+    // @see https://en.wikipedia.org/wiki/Spherical_coordinate_systemif
     float theta = atan(sqrt(x*x+y*y),z);
+    if(theta < basis_angle_limit) return direction;
+    float phi = atan(y,x);
     theta = clamp(theta, 0.0, basis_angle_limit);
     //convert back to cartesian coordinate
     x = cos(phi) * sin(theta);
     y = sin(phi) * cos(theta);
     z = cos(theta);
+    
     // convert from z-up to y up
     viewing.x = x;
     viewing.y = z;
@@ -62,7 +65,7 @@ vec3 getViewingDirection()
 {
     // viewing direction is a direction from point in 3D to camera postion
     vec3 viewing = normalize(vCoord - cameraPosition);
-    viewing = clampViewingDirection(viewing);
+    if(basis_angle_limit > 0.0) viewing = clampViewingDirection(viewing); // clamp only angle_limit in [0, pi]
     return viewing;
 }
 

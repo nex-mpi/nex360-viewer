@@ -71,7 +71,7 @@ class NeXviewerApp{
             this.cfg.camera_radius = cam.length();
         }
         if(typeof this.cfg.basis_angle_limit === 'undefined'){
-            this.cfg.basis_angle_limit = Math.PI * 0.5;
+            this.cfg.basis_angle_limit = -Math.PI;
         }
         if(this.cfg.hasOwnProperty('delaunay') && this.cfg['delaunay']){
             //prepare barycentric
