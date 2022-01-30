@@ -258,7 +258,7 @@ class NeXviewerApp{
             this.materials[mpiId] = [];
             var basis_align = new THREE.Matrix3();
             var m = this.cfg.basis_align[mpiId];
-            basis_align.set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[0][1], m[2][2]);
+            basis_align.set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2]);
             for(var i = 0; i < this.cfg['planes'][mpiId].length; i++){
                 var depth = this.cfg['planes'][mpiId][i];
                 var plane_width = fov_width_tan * (depth * plane_width_ratio) * 2.0;
