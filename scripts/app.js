@@ -7,10 +7,17 @@ class NeXviewerApp{
         this.loadTexture(function(){           
             self.initScene();
             if(typeof(callback) === typeof(Function)){
+                self.initStat();
                 callback(self);
             }            
         });
         
+    }
+    initStat(){
+        // intial stat
+        this.stats = new Stats();
+        this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+        document.body.appendChild(this.stats.dom);
     }
     prepareConfig(cfg){
         this.cfg = cfg;
@@ -53,12 +60,20 @@ class NeXviewerApp{
         }
         if (typeof this.cfg.camera_position === 'undefined'){
             //set default camera location to first MPI location
-            var mpi_id = 0;
-            this.cfg.camera_position = {
-                "x": this.cfg.c2ws[mpi_id][0][3],
-                "y": this.cfg.c2ws[mpi_id][1][3],
-                "z": this.cfg.c2ws[mpi_id][2][3]
-            };
+            if(this.cfg.dataset_type == 'blender'){
+                this.cfg.camera_position = { 
+                    "x": -0.07011159657250285, 
+                    "y": 2.394678896816099,
+                    "z": 3.2032165207286396
+                }
+            }else{
+                var mpi_id = 0;
+                this.cfg.camera_position = {
+                    "x": this.cfg.c2ws[mpi_id][0][3],
+                    "y": this.cfg.c2ws[mpi_id][1][3],
+                    "z": this.cfg.c2ws[mpi_id][2][3]
+                };    
+            }
         }
         if(typeof this.cfg.basis_angle_limit === 'undefined'){
             this.cfg.basis_angle_limit = -Math.PI;
@@ -76,10 +91,6 @@ class NeXviewerApp{
         zip.configure({ workerScripts: { deflate: zip_workers, inflate: zip_workers} });
     }
     initThreejs(){
-        // intial stat
-        this.stats = new Stats();
-        this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
-        document.body.appendChild(this.stats.dom);
  
         // initial global thing
         var targetHeight = this.cfg['height'];
@@ -215,14 +226,6 @@ class NeXviewerApp{
     }
     initScene(){ 
         // prepare scene     
-        /*   
-        const originBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-        const originMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
-        var cube = new THREE.Mesh( originBox, originMat )
-        this.scene.add(cube);
-        */
-        this.resetCameraPose();
-        //this.nextNerfCameraPose();
         this.materials = {};
         this.mpis = {};
         var num_mpis = this.textures["num"]["mpi"].length;
@@ -480,8 +483,8 @@ class NeXviewerApp{
     animate(){
         this.stats.begin();
         this.requestFrame = requestAnimationFrame(this.animate.bind(this));
-        //if(this.cfg.controls_type == "manual") this.controls.update();
-        if(this.cfg.controls_type == "nerf")  this.nextNerfCameraPose(); //this.updateNeRFCameraPose();
+        if(this.cfg.controls_type == "manual" && this.cfg.dataset_type != "tank") this.controls.update();
+        if(this.cfg.controls_type == "nerf")  this.nextNerfCameraPose();
         this.composeFrame();
         this.stats.end();
     }
@@ -664,6 +667,7 @@ class NeXviewerApp{
     render(){  
         this.precompile();      
         this.animate();
+        this.resetCameraPose();
     }
     bary(){
         /*
@@ -891,7 +895,7 @@ class NeXviewerApp{
     setCameraPose(pose){
         this.camera.position.set(0,0,0);
         this.camera.rotation.set(0,0,0);
-        this.camera.applyMatrix4(this.matrices['nerf_c2ws'][0]);
+        this.camera.applyMatrix4(pose);
     }
     vr(){
         var self = this;

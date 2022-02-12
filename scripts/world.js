@@ -21,30 +21,27 @@ class NeXworld{
         //add grid
         var gridGround = new THREE.GridHelper( 10, 30,0x777777, 0x777777 );
         this.scene.add(gridGround);
-        //gridGround.rotation.x = Math.PI / 2;
-      
-        // BUILD A LEGO
-        const originBox = new THREE.BoxGeometry(0.65, 1.2, 0.01);
-        const originMat = new THREE.MeshBasicMaterial( { color: 0xcdba92, side: THREE.DoubleSide} );
-        /*
-        var lego_group = new THREE.Group();
-        lego_group.add(new THREE.Mesh( originBox, originMat ))
-        var lego_mainbox = new THREE.Mesh( new THREE.BoxGeometry(0.4, 0.8, 0.6), new THREE.MeshBasicMaterial( { color: 0xf6c924, side: THREE.DoubleSide} ) )
-        lego_mainbox.position.y = 0.2;
-        lego_mainbox.position.z = 0.3;
-        lego_group.add(lego_mainbox);
-        var lego_pickup = new THREE.Mesh( new THREE.BoxGeometry(0.3, 0.4, 0.2), new THREE.MeshBasicMaterial( { color: 0x957c1a, side: THREE.DoubleSide} ) )
-        lego_pickup.position.y = -0.2;
-        lego_pickup.position.z = 0.6;
-        lego_group.add(lego_pickup);
-        this.scene.add(lego_group);
-        */
 
         this.virtual_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0x00ffff, side: THREE.DoubleSide} ) );
-        this.projected_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide} ) );
         this.virtual_camera.position.z = 4.0;
         this.scene.add(this.virtual_camera);
-        this.scene.add(this.projected_camera);
+        //this.projected_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide} ) );
+        //this.scene.add(this.projected_camera);
+        const objLoader = new THREE.OBJLoader();
+        var self = this;
+        objLoader.load(
+            this.cfg['scene_url'] + '/mesh_basecolor.obj', function ( object ) {
+                var light = new THREE.AmbientLight(0xffffff);
+                self.scene.add(light);
+                self.scene.add(object);
+            },
+            function (xhr) {
+            },
+            function (error) {
+                console.error(error)
+            }
+        )
+
         this.init_texture();
         // load texture;
         this.camera.position.z = 20; // TODO: support proper position        
@@ -103,6 +100,7 @@ $(document).ready(function() {
     
     
     $.getJSON(params.scene + '/config.json', function(cfg) {
+        cfg['scene_url'] = params.scene;
         window.app = new NeXworld(cfg);
         window.app.render();    
         function onStorageChange(){
@@ -113,6 +111,7 @@ $(document).ready(function() {
                 this.app.virtual_camera.position.y = camera_location.y;
                 this.app.virtual_camera.position.z = camera_location.z;
             }
+            /*
             var projected_location = localStorage.getItem('projected_camera_location');
             if(projected_location != null){
                 projected_location = JSON.parse(projected_location);
@@ -120,6 +119,7 @@ $(document).ready(function() {
                 this.app.projected_camera.position.y = projected_location.y;
                 this.app.projected_camera.position.z = projected_location.z;
             }
+            */
             var bary_address = localStorage.getItem('bary_address');
             if(bary_address != null){
                 bary_address = JSON.parse(bary_address);

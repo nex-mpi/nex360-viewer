@@ -2,16 +2,37 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>NeX360 Viewer</title>
+		<title>NeX360 Viewer - MPIs visualization</title>
+		<link rel="stylesheet" href="styles/bulma.min.css">
 		<style>
+			html{
+				background-color: #3a3a3a;
+			}
 			body { margin: 0; }
+			.abs-center{
+				margin-left: auto;
+				margin-right: auto;
+				left: 0;
+				right: 0;
+				text-align: center;
+				position: absolute;
+				color: #fff;
+			}
+			canvas{
+				margin-left: auto;
+				margin-right: auto;
+			}
 		</style>
 	</head>
 	<body>
+		<div class="abs-center" style=" top: 10px;">
+			Move object in the main window
+		</div>
+		<!-- <div class="abs-center" style=" bottom: 0;"> Green show MPIs use to blend and output </div> -->
 		<script src="scripts/thrid-party/jquery-3.6.0.min.js"></script>
         <script src="scripts/thrid-party/three-r130.js"></script>
         <script src="scripts/thrid-party/OrbitControls.js"></script>
-		<script src="scripts/thrid-party/stats.js"></script>
+		<script src="scripts/thrid-party/OBJLoader.js"></script>
 		<script src="scripts/world.js"></script>
 	</body>
 </html>
