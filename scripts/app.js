@@ -53,22 +53,12 @@ class NeXviewerApp{
         }
         if (typeof this.cfg.camera_position === 'undefined'){
             //set default camera location to first MPI location
-            var mpi_id = 25;
+            var mpi_id = 0;
             this.cfg.camera_position = {
                 "x": this.cfg.c2ws[mpi_id][0][3],
                 "y": this.cfg.c2ws[mpi_id][1][3],
                 "z": this.cfg.c2ws[mpi_id][2][3]
             };
-        }
-        if (typeof this.cfg.camera_radius === 'undefined'){
-            //set default camera location to first MPI location
-            var mpi_id = 0;
-            var cam = new THREE.Vector3(
-                this.cfg.c2ws[mpi_id][0][3],
-                this.cfg.c2ws[mpi_id][1][3],
-                this.cfg.c2ws[mpi_id][2][3]
-            )
-            this.cfg.camera_radius = cam.length();
         }
         if(typeof this.cfg.basis_angle_limit === 'undefined'){
             this.cfg.basis_angle_limit = -Math.PI;
@@ -232,6 +222,7 @@ class NeXviewerApp{
         this.scene.add(cube);
         */
         this.resetCameraPose();
+        //this.nextNerfCameraPose();
         this.materials = {};
         this.mpis = {};
         var num_mpis = this.textures["num"]["mpi"].length;
@@ -273,7 +264,6 @@ class NeXviewerApp{
                         mpi_ratio_width: {value: mpi_ratio_width},
                         mpi_ratio_height: {value: mpi_ratio_height},
                         num_planes: {value: this.cfg['planes'][mpiId].length},
-                        camera_radius: {value: this.cfg.camera_radius},
                         color_mode: {value: 0},
                         basis_angle_limit: {value: this.cfg.basis_angle_limit},
                         basis_align: {value: basis_align},
@@ -443,12 +433,27 @@ class NeXviewerApp{
         }
         loadMpis(0);         
     }
+    toMat4(c2w_arr){
+        var c2w = new THREE.Matrix4();
+        //set is row major, internal is column major`    
+        c2w.set(
+            c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
+            c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
+            c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
+            c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
+        );
+        return c2w
+    }
     initMatrices(){
         this.matrices = {
             'c2ws': [],
             'w2cs': [],
             'nerf_c2ws': [],
             'nerf_w2cs': [],
+            'camera_c2w': undefined
+        }
+        if (typeof this.cfg.camera_extrinsic !== 'undefined'){  
+            this.matrices['camera_c2w'] = this.toMat4(this.cfg.camera_extrinsic)
         }
         var nerf2glmat = new THREE.Matrix4();
         nerf2glmat.set(
@@ -458,28 +463,14 @@ class NeXviewerApp{
             0.0,  0.0, 0.0, 1.0
         );
         for(var i = 0; i < this.cfg.c2ws.length; i++){
-            var c2w_arr = this.cfg.c2ws[i];
-            var c2w = new THREE.Matrix4();
-            //set is row major, internal is column major`    
-            c2w.set(
-                c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
-                c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
-                c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
-                c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
-            );
+            var c2w = this.toMat4(this.cfg.c2ws[i])
             this.matrices['c2ws'].push(c2w);
             this.matrices['w2cs'].push(c2w.clone().invert());
         }
         if(typeof this.cfg.nerf_path !== 'undefined'){
+            $("#btn-predict").show();
             for(var i = 0; i < this.cfg.nerf_path.frames.length; i++){
-                var c2w_arr = this.cfg.nerf_path.frames[i].transform_matrix;
-                var c2w = new THREE.Matrix4();
-                c2w.set(
-                    c2w_arr[0][0], c2w_arr[0][1], c2w_arr[0][2], c2w_arr[0][3],
-                    c2w_arr[1][0], c2w_arr[1][1], c2w_arr[1][2], c2w_arr[1][3],
-                    c2w_arr[2][0], c2w_arr[2][1], c2w_arr[2][2], c2w_arr[2][3],
-                    c2w_arr[3][0], c2w_arr[3][1], c2w_arr[3][2], c2w_arr[3][3] 
-                );
+                var c2w = this.toMat4(this.cfg.nerf_path.frames[i].transform_matrix);
                 if(this.cfg.dataset_type == 'blender') c2w.premultiply(nerf2glmat);
                 this.matrices['nerf_c2ws'].push(c2w);
                 this.matrices['nerf_w2cs'].push(c2w.clone().invert());
@@ -489,7 +480,7 @@ class NeXviewerApp{
     animate(){
         this.stats.begin();
         this.requestFrame = requestAnimationFrame(this.animate.bind(this));
-        if(this.cfg.controls_type == "manual") this.controls.update();
+        //if(this.cfg.controls_type == "manual") this.controls.update();
         if(this.cfg.controls_type == "nerf")  this.nextNerfCameraPose(); //this.updateNeRFCameraPose();
         this.composeFrame();
         this.stats.end();
@@ -557,27 +548,6 @@ class NeXviewerApp{
         var position = this.camera.position.clone();
         var mpi_radius = mpi00_cam.length();
         var cam_radius = position.length();
-       /*
-        var focal = this.cfg.focal;
-        var cy = this.cfg.height / 2.0;
-        var cx = this.cfg.width / 2.0
-        var intrinsic = new THREE.Matrix3();
-        intrinsic.set(
-            focal,   0.0,  cx,
-              0.0, focal,  cy,
-              0.0,   0.0, 1.0
-        )     
-        var direction = new THREE.Vector3(cx, cy, 1.0); 
-        direction.applyMatrix3(intrinsic.clone().invert());
-        direction.applyMatrix3(rot);
-        //solve for (position + vec_size * direction)**2 = (mpi_radius) ** 2
-        //using quadratic formular @see https://en.wikipedia.org/wiki/Quadratic_formula
-        var b = (position.x * direction.x) + (position.y * direction.y) + (position.z * direction.z);
-        var c =  (cam_radius * cam_radius) - (mpi_radius * mpi_radius);
-        var vec_size = -b - Math.sqrt((b*b) - c);
-        var projected_cam = position.clone().addScaledVector(direction, vec_size);
-        projected_cam.multiplyScalar(-1); //need to flip to match OpenGL 
-        */
         var c2w = this.camera.matrixWorld.clone().elements;
         var rot = new THREE.Matrix3();
         rot.set(
@@ -832,7 +802,6 @@ class NeXviewerApp{
             this.composeFrame();  
             this.renderer.readRenderTargetPixels(this.blendComposerTarget, 0, 0, blendBuffer.width, blendBuffer.height, rawPixelData);
             this.captured_frame.push(rawPixelData);
-            console.log(rawPixelData);
             this.renderer.clear(true,true,true);
             this.blendComposer.renderToScreen = true;
             this.renderer.autoClear = true;
@@ -900,7 +869,9 @@ class NeXviewerApp{
         if(this.cfg.controls_type == "nerf"){
             //reset camera position   
             this.camera.position.set(0,0,0);
-            this.camera.rotation.set(0,0,0);           
+            this.camera.rotation.set(0,0,0);      
+        }else if(typeof this.cfg.camera_extrinsic !== 'undefined'){ 
+            this.setCameraPose(this.matrices['camera_c2w']);
         }else{
             this.camera.position.set(
                 this.cfg.camera_position.x,
@@ -915,9 +886,12 @@ class NeXviewerApp{
         this.cfg.nerf_path.frame_id++;
     }
     setNeRFCameraPose(frame_id){
+        this.setCameraPose(this.matrices['nerf_c2ws'][frame_id]);
+    }
+    setCameraPose(pose){
         this.camera.position.set(0,0,0);
         this.camera.rotation.set(0,0,0);
-        this.camera.applyMatrix4(this.matrices['nerf_c2ws'][frame_id]);
+        this.camera.applyMatrix4(this.matrices['nerf_c2ws'][0]);
     }
     vr(){
         var self = this;

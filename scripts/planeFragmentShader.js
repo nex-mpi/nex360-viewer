@@ -25,7 +25,6 @@ uniform int alpha_ch;
 uniform int color_mode;
 uniform float plane_id;
 uniform float basis_angle_limit; //clamp basis with a spherical angle
-uniform float camera_radius;
 uniform float num_planes;
 uniform mat3 basis_align;
 
