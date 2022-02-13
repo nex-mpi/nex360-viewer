@@ -18,11 +18,13 @@ class NeXworld{
         this.renderer.setClearColor( 0x3a3a3a, 1 ); //change to white background
         document.body.appendChild(this.renderer.domElement );       
         // prepare scene  
+        var grid_size = (this.cfg.dataset_type == 'tank') ? 3 : 10;
+        var sphere_size = (this.cfg.dataset_type == 'tank') ? 0.05 : 0.1;
+        var cone_sharp =  (this.cfg.dataset_type == 'tank') ? 0.15 : 0.3;
         //add grid
-        var gridGround = new THREE.GridHelper( 10, 30,0x777777, 0x777777 );
+        var gridGround = new THREE.GridHelper( grid_size, 30,0x777777, 0x777777 );
         this.scene.add(gridGround);
-
-        this.virtual_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0x00ffff, side: THREE.DoubleSide} ) );
+        this.virtual_camera =  new THREE.Mesh( new THREE.SphereGeometry(sphere_size, 32, 32), new THREE.MeshBasicMaterial( { color: 0x00ffff, side: THREE.DoubleSide} ) );
         this.virtual_camera.position.z = 4.0;
         this.scene.add(this.virtual_camera);
         //this.projected_camera =  new THREE.Mesh( new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide} ) );
@@ -47,13 +49,15 @@ class NeXworld{
         this.camera.position.z = 20;
         if(this.cfg.dataset_type == "blender"){
             this.camera.position.set(-0.3453558364400958, 6.487606184146768, 10.417565564878583);
-        }    
+        }else if(this.cfg.dataset_type == "tank"){
+            this.camera.position.set(1.7902465040373388, 0.6028678793124961, 0.035601054228582465);
+        }
         this.mpis = {};
         this.coneMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
         this.coneTargetMat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide} );
         for(var i = 0; i < this.cfg.c2ws.length; i++)
         {
-            const cone_geo = new THREE.ConeGeometry(0.1, 0.5);  
+            const cone_geo = new THREE.ConeGeometry(sphere_size, cone_sharp);  
             this.mpis[i] = {}              
             this.mpis[i]['cone'] = new THREE.Mesh(cone_geo, this.coneMat); 
             this.mpis[i]['cone'].rotation.x = Math.PI / 2.0;
