@@ -44,7 +44,10 @@ class NeXworld{
 
         this.init_texture();
         // load texture;
-        this.camera.position.z = 20; // TODO: support proper position        
+        this.camera.position.z = 20;
+        if(this.cfg.dataset_type == "blender"){
+            this.camera.position.set(-0.3453558364400958, 6.487606184146768, 10.417565564878583);
+        }    
         this.mpis = {};
         this.coneMat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
         this.coneTargetMat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide} );
